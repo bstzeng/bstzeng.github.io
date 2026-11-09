@@ -10,7 +10,7 @@ export const CFG = {
   guardS: 0.165,
   guardZ: 0.03,
   capZ: 0.172,
-  ballDamping: 0.3, // 空氣阻力 + 滾動損耗（等效線性阻尼）
+  ballDamping: globalThis.BALL_DAMPING ?? 0.05, // 空氣阻力 + 滾動損耗（很小，球在坡上會明顯加速）
   dt: 1 / 240,
   liftR: 0.5,
   liftY0: 0.42,
@@ -387,7 +387,7 @@ export async function createTower(RAPIER, opts = {}) {
   }
 
   /* --- 翻斗（集球器）：配重讓斗子後傾存球，球累積到 4 顆，力矩超過配重就整斗翻倒、一起放出 --- */
-  function addTray(pivot, front, capacityMass = 4.2) {
+  function addTray(pivot, front, capacityMass = +(globalThis.TRAY_CW ?? 5.0)) {
     const lx = norm(front), ly = UP, lz = norm(cross(lx, ly));
     const S = basisShape(lx, ly, lz);
     const shapes = [
@@ -399,11 +399,11 @@ export async function createTower(RAPIER, opts = {}) {
       S("box", [-0.42, -0.02, 0], { half: [0.1, 0.1, 0.12], mass: capacityMass, role: "weight" }),
     ];
     const body = dynamicPart(pivot, shapes);
-    const joint = revolute(body, pivot, lz, [-25 * deg, 8 * deg], 0.25);
+    const joint = revolute(body, pivot, lz, [-25 * deg, 8 * deg], 0.8);
     const tr = { body, joint, pivot, lx, lz, shapes, dumps: 0, tipped: false };
     out.trays.push(tr);
     const L = (x, y) => add(add(pivot, mul(lx, x)), mul(UP, y));
-    return { feedEnd: L(0.97, 0.60), feedPrev: L(1.3, 0.62), out0: L(1.08, -0.30), out1: L(1.4, -0.36), tray: tr };
+    return { feedEnd: L(0.97, 0.60), feedPrev: L(1.3, 0.62), hopTop: L(0.8, 1.07), out0: L(1.08, -0.30), out1: L(1.4, -0.36), tray: tr };
   }
 
   /* --- 水車（齒輪）：球掉進槽裡，重量讓輪子轉，帶動旁邊的齒輪組 --- */
@@ -478,9 +478,11 @@ export async function createTower(RAPIER, opts = {}) {
   // ---- Q2：螺旋 → 翻斗（存 4 顆一起放）→ 長螺旋 ----
   {
     const m = mir(-1, 1);
-    const pts = [[1.75, 8.83, 1.5], [1.45, 8.80, 1.85], ...spiral([2.2, 2.2], 0.85, 190, -530, 8.76, 6.92)];
+    // 螺旋衝下來的球很快，先落進集球斗把速度吃掉，再輕輕掉進翻斗（不然會撞飛斗裡排隊的球）
+    const pts = [[1.75, 8.83, 1.5], [1.45, 8.80, 1.85], ...spiral([2.2, 2.2], 0.85, 190, -530, 8.76, 7.56), [1.36, 7.53, 2.17]];
     const tr = addTray(m([1.36, 6.28, 3.15]), m([0, 0, -1]));
-    addTrack([...S2b.outB, ...pts.map(m), tr.feedEnd], { name: "Q2 螺旋", v2: 4, color: 0xff2bd6 });
+    addHopper(tr.hopTop, m([0, 0, 1]), 0.8, 0.5, 0.15, 0.35, 0.12);
+    addTrack([...S2b.outB, ...pts.map(m)], { name: "Q2 螺旋", v2: 4, color: 0xff2bd6 });
     const pts2 = [[1.36, 5.94, 1.72], [1.42, 5.89, 1.45], [1.65, 5.84, 1.33], [1.95, 5.81, 1.33], ...spiral([2.2, 2.2], 0.85, -90, 1440, 5.77, 1.68), [3.05, 1.64, 2.5], [3.0, 1.62, 2.75]];
     addTrack([tr.out0, tr.out1, ...pts2.slice(1).map(m)], { name: "Q2 長螺旋", v2: 4, color: 0xff2bd6 });
     out.checkpoints.push({ name: "Q2 進入", p: S2b.outB[1] }, { name: "Q2 翻斗出口", p: m([1.65, 5.84, 1.33]) }, { name: "Q2 底部", p: m([3.05, 1.64, 2.5]) });
