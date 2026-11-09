@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#05040b">
+  <title>霓虹滾球 // NEON LAB</title>
+  <meta name="description" content="手機平放、用陀螺儀傾斜控制金屬球穿越龐克風迷宮：陷阱洞、加速帶、彈簧柱、推擠牆、旋轉臂與開關閘門。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans+TC:wght@400;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="maze.css">
+  <script type="importmap">
+    { "imports": { "three": "../lib/three.module.min.js", "three/addons/": "../lib/jsm/" } }
+  </script>
+</head>
+<body>
+  <canvas id="scene" aria-label="3D 滾球迷宮"></canvas>
+
+  <header class="top">
+    <a class="chip mono" href="../">← 首頁</a>
+    <div class="lvl">
+      <p class="mono" id="lvNo">STAGE 01</p>
+      <h1 id="lvName">起步</h1>
+    </div>
+    <div class="top-right">
+      <span class="chip mono" id="timer">00:00.0</span>
+      <button class="icon" id="bRestart" aria-label="重來本關" title="重來本關">↺</button>
+      <button class="icon" id="bLevels" aria-label="選擇關卡" title="選擇關卡">☰</button>
+      <button class="icon" id="bSettings" aria-label="設定" title="視角與靈敏度">⚙</button>
+    </div>
+  </header>
+
+  <p class="toast" id="toast" role="status" aria-live="polite"></p>
+  <p class="tip" id="tip"></p>
+  <div class="joy" id="joy" aria-hidden="true"><i></i></div>
+  <p class="falls mono" id="falls">掉落 0</p>
+
+  <!-- 開始畫面 -->
+  <div class="overlay" id="start">
+    <div class="start-box">
+      <p class="mono tag">TOPIC_02 // TILT MAZE</p>
+      <h2>霓虹滾球</h2>
+      <p class="lead">把手機<b>平放在桌上</b>，然後點擊中間的圓圈。<br>之後傾斜手機，金屬球就會往低的那邊滾。</p>
+      <button class="tap" id="bStart"><span>點我<br>開始</span></button>
+      <p class="small" id="deskHint">電腦：用 <kbd>←↑↓→</kbd> / <kbd>WASD</kbd> 傾斜，或用滑鼠拖曳畫面</p>
+    </div>
+  </div>
+
+  <!-- 設定 -->
+  <div class="sheet" id="settings" hidden>
+    <div class="sheet-box">
+      <h3>視角與操作</h3>
+      <label>視角傾斜 <span id="vTiltV"></span><input type="range" id="vTilt" min="40" max="90" step="1"></label>
+      <label>鏡頭距離 <span id="vZoomV"></span><input type="range" id="vZoom" min="5" max="22" step="0.5"></label>
+      <label>鏡頭旋轉 <span id="vYawV"></span><input type="range" id="vYaw" min="-45" max="45" step="1"></label>
+      <label>靈敏度 <span id="vSensV"></span><input type="range" id="vSens" min="0.4" max="2" step="0.05"></label>
+      <label class="row">牆壁半透明 <input type="checkbox" id="vGhost"></label>
+      <label class="row">牆壁高度低一點 <input type="checkbox" id="vLow"></label>
+      <label class="row">音效 <input type="checkbox" id="vSound"></label>
+      <div class="sheet-actions">
+        <button class="btn" id="bCalib">重新校正水平</button>
+        <button class="btn ghost" id="bClose">完成</button>
+      </div>
+      <p class="small">校正：把手機平放後按「重新校正水平」，目前的角度就會被當成水平。</p>
+    </div>
+  </div>
+
+  <!-- 關卡選擇 -->
+  <div class="sheet" id="levels" hidden>
+    <div class="sheet-box">
+      <h3>選擇關卡</h3>
+      <div class="lv-grid" id="lvGrid"></div>
+      <div class="sheet-actions"><button class="btn ghost" id="bLvClose">關閉</button></div>
+    </div>
+  </div>
+
+  <!-- 過關 -->
+  <div class="overlay" id="clear" hidden>
+    <div class="start-box">
+      <p class="mono tag" id="clearTag">STAGE CLEAR</p>
+      <h2 id="clearTitle">過關！</h2>
+      <p class="lead mono" id="clearStats"></p>
+      <div class="sheet-actions">
+        <button class="btn" id="bNext">下一關 →</button>
+        <button class="btn ghost" id="bAgain">再玩一次</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
