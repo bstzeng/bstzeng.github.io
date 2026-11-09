@@ -2,26 +2,61 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>機關塔 3D // NEON LAB</title>
+  <meta name="description" content="五層滾珠機關塔：螺旋升降機、分球器、水車齒輪、翻斗、彈跳連環與雲霄飛車，全部由真實剛體物理驅動。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans+TC:wght@400;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/style.css">
-  <style>
-    main { min-height: 100vh; display: grid; place-items: center; text-align: center; padding: 16px; }
-    h1 { font-family: var(--display); font-size: clamp(2rem, 8vw, 4rem); color: var(--cyan); text-shadow: 0 0 20px var(--cyan); }
-    p { color: var(--muted); margin: 10px 0 24px; }
-  </style>
+  <link rel="stylesheet" href="tower.css">
+  <script type="importmap">
+    { "imports": { "three": "../lib/three.module.min.js", "three/addons/": "../lib/jsm/" } }
+  </script>
 </head>
 <body>
-  <div class="scanlines" aria-hidden="true"></div>
-  <div class="grid-floor" aria-hidden="true"></div>
-  <main>
-    <div>
-      <p class="mono" style="color:var(--pink)">TOPIC_01 // UNDER CONSTRUCTION<span class="cursor">_</span></p>
+  <canvas id="scene" aria-label="可旋轉的 3D 滾珠機關塔"></canvas>
+
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p class="mono">物理引擎啟動中<span class="dots"></span></p>
+  </div>
+
+  <header class="hud-top">
+    <a class="back mono" href="../">← 回首頁</a>
+    <div class="title">
+      <p class="mono tag">TOPIC_01 // REAL PHYSICS</p>
       <h1>機關塔 3D</h1>
-      <p>建模中，敬請期待。</p>
-      <a class="btn" href="../">← 回首頁</a>
     </div>
-  </main>
+  </header>
+
+  <aside class="panel" id="panel">
+    <button class="panel-toggle mono" id="panelToggle" aria-expanded="true">即時數據 ▾</button>
+    <div class="panel-body">
+      <ul class="stats mono">
+        <li><span>小球</span><b id="sBalls">0</b></li>
+        <li><span>送上塔頂</span><b id="sLift">0</b></li>
+        <li><span>分球 左 / 右</span><b id="sSplit">0 / 0</b></li>
+        <li><span>翻斗翻倒</span><b id="sTray">0</b></li>
+        <li><span>翻斗內存球</span><b id="sTrayN">0 / 4</b></li>
+        <li><span>彈跳次數</span><b id="sBounce">0</b></li>
+        <li><span>模擬速度</span><b id="sSpeed">—</b></li>
+      </ul>
+      <p class="note">所有零件都是真實剛體物理：重力、摩擦、碰撞、槓桿與力矩。沒有任何預先寫好的動畫路徑。</p>
+    </div>
+  </aside>
+
+  <nav class="controls" aria-label="控制">
+    <button id="bAdd" class="btn-neon">＋ 加 5 顆球</button>
+    <button id="bFollow" class="btn-neon" aria-pressed="false">🎥 跟隨小球</button>
+    <button id="bSlow" class="btn-neon" aria-pressed="false">⏱ 慢動作</button>
+    <button id="bPause" class="btn-neon" aria-pressed="false">⏸ 暫停</button>
+    <button id="bSound" class="btn-neon" aria-pressed="false">🔇 音效</button>
+    <button id="bLabels" class="btn-neon" aria-pressed="true">🏷 標籤</button>
+    <button id="bView" class="btn-neon">↺ 視角</button>
+  </nav>
+
+  <p class="hint mono" id="hint">拖曳旋轉 · 滾輪/雙指縮放 · 右鍵平移</p>
+
+  <script type="module" src="main.js"></script>
 </body>
 </html>
