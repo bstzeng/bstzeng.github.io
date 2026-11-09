@@ -1,0 +1,57 @@
+:root {
+  --bg: #05040b;
+  --cyan: #00f0ff;
+  --pink: #ff2bd6;
+  --yellow: #fcee0a;
+  --text: #e8e6f5;
+  --muted: #8b86a8;
+  --line: rgba(0, 240, 255, .3);
+  --glass: rgba(10, 8, 22, .72);
+  --font: "Noto Sans TC", system-ui, sans-serif;
+  --display: "Orbitron", "Noto Sans TC", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font); }
+.mono { font-family: var(--mono); }
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+.loading { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 18px; background: var(--bg); z-index: 20; transition: opacity .6s; color: var(--cyan); }
+.loading.done { opacity: 0; pointer-events: none; }
+.spinner { width: 54px; height: 54px; border: 3px solid rgba(0,240,255,.2); border-top-color: var(--cyan); border-right-color: var(--pink); border-radius: 50%; animation: spin 1s linear infinite; box-shadow: 0 0 20px rgba(0,240,255,.4); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.dots::after { content: ""; animation: dots 1.2s steps(4) infinite; }
+@keyframes dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } }
+
+.hud-top { position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: flex-start; gap: 20px; padding: 14px 16px; pointer-events: none; z-index: 5; }
+.back { pointer-events: auto; color: var(--cyan); border: 1px solid var(--line); background: var(--glass); padding: 6px 12px; font-size: .8rem; backdrop-filter: blur(6px); transition: background .2s, color .2s; }
+.back:hover { background: var(--cyan); color: var(--bg); }
+.title .tag { color: var(--pink); font-size: .7rem; letter-spacing: .2em; text-shadow: 0 0 8px var(--pink); }
+.title h1 { font-family: var(--display); font-weight: 900; font-size: clamp(1.4rem, 4vw, 2.2rem); color: var(--text); text-shadow: 0 0 14px rgba(0,240,255,.7), 0 0 2px #fff; letter-spacing: .05em; }
+
+.panel { position: fixed; top: 78px; right: 16px; width: 240px; background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(8px); z-index: 5; clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%); }
+.panel-toggle { width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--cyan); padding: 8px 12px; font-size: .75rem; letter-spacing: .15em; cursor: pointer; }
+.panel.collapsed .panel-body { display: none; }
+.panel.collapsed .panel-toggle { border-bottom: 0; }
+.panel-body { padding: 10px 12px 12px; }
+.stats { list-style: none; display: grid; gap: 6px; font-size: .78rem; }
+.stats li { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); }
+.stats b { color: var(--yellow); font-weight: 600; text-shadow: 0 0 8px rgba(252,238,10,.5); }
+.note { margin-top: 10px; font-size: .72rem; line-height: 1.6; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 8px; }
+
+.controls { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; z-index: 5; width: min(100% - 32px, 900px); }
+.btn-neon { font-family: var(--font); font-weight: 700; font-size: .85rem; color: var(--text); background: var(--glass); border: 1px solid var(--line); padding: 9px 14px; cursor: pointer; backdrop-filter: blur(6px); transition: all .15s; clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px)); }
+.btn-neon:hover { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 18px rgba(0,240,255,.35); }
+.btn-neon[aria-pressed="true"] { background: var(--cyan); color: var(--bg); border-color: var(--cyan); }
+#bAdd { background: var(--yellow); color: var(--bg); border-color: var(--yellow); }
+#bAdd:hover { background: var(--pink); border-color: var(--pink); color: #fff; }
+
+.hint { position: fixed; left: 16px; bottom: 76px; color: var(--muted); font-size: .7rem; z-index: 4; pointer-events: none; transition: opacity 1s; }
+
+@media (max-width: 700px) {
+  .panel { top: auto; bottom: 120px; right: 16px; left: 16px; width: auto; }
+  .panel:not(.collapsed) .panel-body { max-height: 34vh; overflow: auto; }
+  .btn-neon { font-size: .78rem; padding: 8px 10px; }
+  .hint { display: none; }
+  .title h1 { font-size: 1.3rem; }
+}

@@ -114,7 +114,7 @@
     "  在這裡實驗粒子、3D、互動與各種奇怪的想法。",
     "  每張卡片都是一個主題，持續擴充中。",
     "> status",
-    "  [OK] 首頁上線  [..] 機關塔 3D 建造中",
+    "  [OK] 首頁上線  [OK] 機關塔 3D 上線",
   ].join("\n");
   const typer = document.getElementById("typer");
   let typed = false;
