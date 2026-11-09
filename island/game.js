@@ -545,8 +545,8 @@ function frame(now) {
     const isl = G.byId[sm.s.target];
     sm.lab.visible = near(sm.s.x, sm.s.z, 5.5);
     drawLabel(sm.lab, `開通「${isl.name}」`, costLines(isl.cost, G.paid[isl.id] || {}));
-    const near = G.payingAt && G.payingAt.s === sm.s;
-    sm.pad.material.opacity = near ? 0.6 + Math.sin(t * 10) * 0.2 : 0.3;
+    const paying = G.payingAt && G.payingAt.s === sm.s;
+    sm.pad.material.opacity = paying ? 0.6 + Math.sin(t * 10) * 0.2 : 0.3;
   }
 
   // 史萊姆
