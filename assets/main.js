@@ -114,7 +114,7 @@
     "  在這裡實驗粒子、3D、互動與各種奇怪的想法。",
     "  每張卡片都是一個主題，持續擴充中。",
     "> status",
-    "  [OK] 機關塔 3D  [OK] 霓虹滾球",
+    "  [OK] 機關塔 3D  [OK] 霓虹滾球  [OK] 浮島工房",
   ].join("\n");
   const typer = document.getElementById("typer");
   let typed = false;

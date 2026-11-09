@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0b2a3a">
+  <title>浮島工房 // NEON LAB</title>
+  <meta name="description" content="操控小主角在六角浮島上採集木頭、石頭、礦石，投入資源開通新島、蓋工坊、雇小幫手，最後擊敗石頭守衛者。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="island.css">
+  <script type="importmap">
+    { "imports": { "three": "../lib/three.module.min.js", "three/addons/": "../lib/jsm/" } }
+  </script>
+</head>
+<body>
+  <canvas id="scene" aria-label="3D 六角浮島"></canvas>
+
+  <header class="hud">
+    <div class="row">
+      <a class="pill" href="../">←</a>
+      <div class="res" id="res" aria-label="資源"></div>
+      <button class="pill" id="bMenu" aria-label="選單">⚙</button>
+    </div>
+    <div class="row bars">
+      <div class="bar hp" title="血量"><i id="hpFill"></i><span id="hpTxt">100</span></div>
+      <div class="bar bag" title="背包"><i id="bagFill"></i><span id="bagTxt">🎒 0/20</span></div>
+    </div>
+  </header>
+
+  <div class="boss" id="bossBar" hidden><p>石頭守衛者</p><div class="bar"><i id="bossFill"></i></div></div>
+  <p class="toast" id="toast" role="status" aria-live="polite"></p>
+  <p class="tip" id="tip"></p>
+  <div class="joy" id="joy" aria-hidden="true"><i></i></div>
+
+  <!-- 建築面板（站在工匠台 / 加工廠 / 小屋旁邊時出現） -->
+  <aside class="panel" id="panel" hidden>
+    <h3 id="panelTitle"></h3>
+    <div id="panelBody"></div>
+  </aside>
+
+  <!-- 開始 / 選單 -->
+  <div class="overlay" id="start">
+    <div class="card">
+      <p class="tag">TOPIC_03 // ISLAND CRAFT</p>
+      <h2>浮島工房</h2>
+      <p class="lead">世界一：綠草森林群島</p>
+      <ul class="howto">
+        <li>🕹️ 拖曳畫面（電腦用 WASD）移動</li>
+        <li>🌲 靠近樹、石頭會自動採集</li>
+        <li>🏠 背包滿了回主島倉庫卸貨</li>
+        <li>🪧 站上島邊的建造牌，投入資源開新島</li>
+        <li>🗿 最後擊敗魔王「石頭守衛者」</li>
+      </ul>
+      <button class="btn" id="bPlay">開始</button>
+    </div>
+  </div>
+  <div class="overlay" id="menu" hidden>
+    <div class="card">
+      <h2 class="small">選單</h2>
+      <label class="check">音效 <input type="checkbox" id="optSound"></label>
+      <div class="actions">
+        <button class="btn" id="bResume">繼續</button>
+        <button class="btn danger" id="bReset">重新開始遊戲</button>
+      </div>
+      <p class="note">進度自動存在這台裝置。只在畫面開著的時候時間才會前進。</p>
+    </div>
+  </div>
+  <div class="overlay" id="clear" hidden>
+    <div class="card">
+      <p class="tag">WORLD 1 CLEAR</p>
+      <h2>第一世界完成！</h2>
+      <p class="lead" id="clearTxt"></p>
+      <div class="actions"><button class="btn" id="bClear">繼續逛逛</button></div>
+    </div>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
