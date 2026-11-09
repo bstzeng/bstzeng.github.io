@@ -23,8 +23,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x7ec8e3);
-scene.fog = new THREE.Fog(0x7ec8e3, 28, 70);
+scene.background = new THREE.Color(0x12405e);
+scene.fog = new THREE.Fog(0x12405e, 26, 62);
 const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 200);
 
 scene.add(new THREE.HemisphereLight(0xdff4ff, 0x3a6a3a, 1.1));
@@ -44,13 +44,16 @@ const M = {
   skin: mat(0xffd2a6), shirt: mat(0xff8a3d), pants: mat(0x3a5a9a), hair: mat(0x4a2a18), dark: mat(0x1a1a22),
   robot: mat(0x40c8c0), slime: new THREE.MeshStandardMaterial({ color: 0x7cff6b, transparent: true, opacity: 0.85, roughness: 0.2 }),
   boss: mat(0x6f766a), moss: mat(0x4a8a3a), eye: new THREE.MeshBasicMaterial({ color: 0x9dff6a }),
-  ghost: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, depthWrite: false }),
+  ghost: new THREE.MeshBasicMaterial({ color: 0x8fd8ff, transparent: true, opacity: 0.28, depthWrite: false }),
 };
-const islandTheme = { home: 0x6cc04a, pine: 0x4fa83d, gravel: 0x9aa46a, copper: 0xb7a35a, works: 0x7cc45a, oldwood: 0x3f8a3a, emerald: 0x5ac0a0, swamp: 0x6a8a4a, boss: 0x7a7f74 };
+const islandTheme = { home: 0x86d93c, pine: 0x7ed13a, gravel: 0x9ed24a, copper: 0xa8d048, works: 0x8ede44, oldwood: 0x6fc436, emerald: 0x74d86a, swamp: 0x7fae3e, boss: 0x8b8fa6 };
+const CANOPY = [0x9ab84a, 0x8cae42, 0xa6c254, 0x80a23c].map((c) => mat(c));
+const PILLAR = [0xb3a8e0, 0x9f94d2, 0xc2b8ea].map((c) => mat(c));
+const M2 = { bark: mat(0x8a5638), ledge: mat(0x4f9c2c), ledgeBoss: mat(0x5c5f78), soil: mat(0x6e4a34), blade: mat(0xb9e86a) };
 
 /* ================= 海 ================= */
 const waterUniforms = { uTime: { value: 0 } };
-const water = new THREE.Mesh(new THREE.PlaneGeometry(240, 240, 120, 120), new THREE.MeshStandardMaterial({ color: 0x2aa3d8, flatShading: true, roughness: 0.35, metalness: 0.1, transparent: true, opacity: 0.92 }));
+const water = new THREE.Mesh(new THREE.PlaneGeometry(240, 240, 120, 120), new THREE.MeshStandardMaterial({ color: 0x1a86ee, flatShading: true, roughness: 0.3, metalness: 0.05, transparent: true, opacity: 0.94 }));
 water.material.onBeforeCompile = (sh) => {
   sh.uniforms.uTime = waterUniforms.uTime;
   sh.vertexShader = "uniform float uTime;\n" + sh.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\n transformed.z += sin(position.x * 0.45 + uTime * 1.2) * 0.12 + cos(position.y * 0.38 + uTime * 0.9) * 0.1;");
@@ -62,22 +65,31 @@ scene.add(water);
 const islandMeshes = new Map();
 function hexGeo(rTop, rBot, h) { const g = new THREE.CylinderGeometry(rTop, rBot, h, 6); g.rotateY(0); return g; }
 function buildIsland(isl) {
+  // 地塊緊密相連成一整片草地：頂面剛好滿版、邊界有淺色小路、外緣是一階深綠色的岸、再外面是六角淺灘
   const g = new THREE.Group(); g.position.set(isl.cx, 0, isl.cz);
-  const top = new THREE.Mesh(hexGeo(HR - 0.02, HR - 0.02, 0.36), mat(islandTheme[isl.id] || 0x6cc04a)); top.position.y = -0.18; top.receiveShadow = true; g.add(top);
-  const dirt = new THREE.Mesh(hexGeo(HR * 0.985, HR * 0.86, 1.0), M.dirt); dirt.position.y = -0.86; g.add(dirt);
-  const base = new THREE.Mesh(hexGeo(HR * 0.86, HR * 0.3, 2.6), isl.id === "boss" ? M.rockDark : M.rock); base.position.y = -2.66; g.add(base);
-  // 草叢與小花
+  const boss = isl.id === "boss";
+  const top = new THREE.Mesh(hexGeo(HR, HR, 0.36), mat(islandTheme[isl.id] || 0x86d93c)); top.position.y = -0.18; top.receiveShadow = true; g.add(top);
+  const ledge = new THREE.Mesh(hexGeo(HR * 1.035, HR * 1.035, 0.5), boss ? M2.ledgeBoss : M2.ledge); ledge.position.y = -0.6; g.add(ledge);
+  const soil = new THREE.Mesh(hexGeo(HR * 0.98, HR * 0.8, 1.6), M2.soil); soil.position.y = -1.6; g.add(soil);
+  const path = new THREE.Mesh(new THREE.RingGeometry(HR * 0.9, HR, 6, 1), new THREE.MeshBasicMaterial({ color: boss ? 0xc9cbe0 : 0xd9f58a, transparent: true, opacity: 0.38, depthWrite: false }));
+  path.rotation.x = -Math.PI / 2; path.rotation.z = Math.PI / 2; path.position.y = 0.006; g.add(path);
   const R = mulberry(isl.idx * 31 + 5);
-  const tuft = new THREE.ConeGeometry(0.08, 0.28, 4);
-  const tufts = new THREE.InstancedMesh(tuft, M.grass2, 26);
-  const m4 = new THREE.Matrix4();
-  for (let i = 0; i < 26; i++) { const a = R() * 6.28, r = R() * (APO - 0.4); m4.makeTranslation(Math.cos(a) * r, 0.1, Math.sin(a) * r); tufts.setMatrixAt(i, m4); }
-  g.add(tufts);
-  if (isl.id === "boss") for (let i = 0; i < 6; i++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.4 + R(), 5), M.rockDark); const a = i * 1.05 + 0.4; sp.position.set(Math.cos(a) * (APO - 0.7), 0.6, Math.sin(a) * (APO - 0.7)); sp.castShadow = true; g.add(sp); }
-  if (isl.id === "swamp") for (let i = 0; i < 4; i++) { const p = new THREE.Mesh(new THREE.CircleGeometry(0.6 + R() * 0.4, 7), mat(0x3a5a2a)); p.rotation.x = -Math.PI / 2; const a = R() * 6.28, r = 1 + R() * 2.5; p.position.set(Math.cos(a) * r, 0.01, Math.sin(a) * r); g.add(p); }
-  // 浪花
-  const foam = new THREE.Mesh(new THREE.RingGeometry(HR * 0.99, HR * 1.12, 6, 1), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false }));
-  foam.rotation.x = -Math.PI / 2; foam.rotation.z = Math.PI / 2; foam.position.y = -0.5; g.add(foam);
+  // 尖尖的草叢（三片一簇）
+  const blade = new THREE.ConeGeometry(0.07, 0.42, 4);
+  const blades = new THREE.InstancedMesh(blade, boss ? M.rockDark : M2.blade, 14 * 3);
+  const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e4 = new THREE.Euler(), v4 = new THREE.Vector3(), s4 = new THREE.Vector3();
+  for (let i = 0; i < 14; i++) {
+    const a = R() * 6.28, r = 0.6 + R() * (APO - 1.1), x = Math.cos(a) * r, z = Math.sin(a) * r;
+    for (let k = 0; k < 3; k++) { e4.set((R() - 0.5) * 0.7, R() * 6.28, (R() - 0.5) * 0.7); q4.setFromEuler(e4); const sc = 0.7 + R() * 0.7; m4.compose(v4.set(x + (k - 1) * 0.1, 0.16 * sc, z + (R() - 0.5) * 0.15), q4, s4.set(1, sc, 1)); blades.setMatrixAt(i * 3 + k, m4); }
+  }
+  g.add(blades);
+  // 小花
+  if (!boss) for (let i = 0; i < 7; i++) { const f = new THREE.Mesh(new THREE.OctahedronGeometry(0.07, 0), mat([0xffffff, 0xffe45a, 0xff9ad0][i % 3])); const a = R() * 6.28, r = R() * (APO - 0.6); f.position.set(Math.cos(a) * r, 0.07, Math.sin(a) * r); g.add(f); }
+  if (boss) for (let i = 0; i < 6; i++) { const a = i * 1.05 + 0.4, h = 1.2 + R() * 1.2; const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.4, h, 6), PILLAR[i % 3]); sp.position.set(Math.cos(a) * (APO - 0.7), h / 2, Math.sin(a) * (APO - 0.7)); sp.castShadow = true; g.add(sp); }
+  if (isl.id === "swamp") for (let i = 0; i < 4; i++) { const p = new THREE.Mesh(new THREE.CircleGeometry(0.6 + R() * 0.4, 6), mat(0x4f7a2e)); p.rotation.x = -Math.PI / 2; const a = R() * 6.28, r = 1 + R() * 2.5; p.position.set(Math.cos(a) * r, 0.012, Math.sin(a) * r); g.add(p); }
+  // 六角淺灘
+  const foam = new THREE.Mesh(hexGeo(HR * 1.2, HR * 1.2, 0.04), new THREE.MeshBasicMaterial({ color: 0x7fd4ff, transparent: true, opacity: 0.4, depthWrite: false }));
+  foam.position.y = -0.5; g.add(foam);
   g.userData.foam = foam;
   scene.add(g);
   islandMeshes.set(isl.id, { g, rise: 0 });
@@ -85,8 +97,8 @@ function buildIsland(isl) {
 // 尚未開通的島：海面下的淡淡影子
 const ghosts = new Map();
 function buildGhost(isl) {
-  const m = new THREE.Mesh(hexGeo(HR - 0.05, HR - 0.05, 0.1), M.ghost);
-  m.position.set(isl.cx, -0.62, isl.cz); scene.add(m); ghosts.set(isl.id, m);
+  const m = new THREE.Mesh(hexGeo(HR - 0.25, HR - 0.25, 0.06), M.ghost);
+  m.position.set(isl.cx, -0.5, isl.cz); scene.add(m); ghosts.set(isl.id, m);
 }
 function mulberry(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
@@ -97,25 +109,29 @@ function makeNode(n) {
   const R = mulberry(n.id * 97 + 3);
   const live = new THREE.Group(); g.add(live);
   if (n.type === "tree" || n.type === "bigtree") {
-    const big = n.type === "bigtree", s = big ? 1.5 : 1;
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12 * s, 0.18 * s, 0.9 * s, 6), M.trunk); trunk.position.y = 0.45 * s; trunk.castShadow = true; live.add(trunk);
-    if (big || ["home", "works", "swamp"].includes(n.island)) {
-      const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.62 * s, 0), M.leafRound); c.position.y = 1.25 * s; c.castShadow = true; live.add(c);
-      const c2 = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42 * s, 0), M.leaf); c2.position.set(0.3 * s, 1.55 * s, 0.1); c2.castShadow = true; live.add(c2);
-    } else {
-      for (let k = 0; k < 3; k++) { const c = new THREE.Mesh(new THREE.ConeGeometry(0.62 - k * 0.15, 0.7, 7), k % 2 ? M.leaf2 : M.leaf); c.position.y = 0.9 + k * 0.38; c.castShadow = true; live.add(c); }
+    // 分岔的樹幹 + 一團一團的樹冠
+    const big = n.type === "bigtree", s = big ? 1.45 : 1;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1 * s, 0.2 * s, 0.95 * s, 6), M2.bark); trunk.position.y = 0.47 * s; trunk.castShadow = true; live.add(trunk);
+    for (const sgn of [-1, 1]) { const br = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * s, 0.08 * s, 0.6 * s, 5), M2.bark); br.position.set(sgn * 0.2 * s, 0.95 * s, 0); br.rotation.z = -sgn * 0.75; live.add(br); }
+    const blobs = big ? 7 : 5;
+    for (let k = 0; k < blobs; k++) {
+      const top = k === 0, a = k * (6.28 / (blobs - 1)) + R();
+      const rad = (top ? 0.62 : 0.4 + R() * 0.16) * s;
+      const c = new THREE.Mesh(new THREE.IcosahedronGeometry(rad, 0), CANOPY[(n.id + k) % CANOPY.length]);
+      c.position.set(top ? 0 : Math.cos(a) * 0.48 * s, (top ? 1.55 : 1.15 + R() * 0.25) * s, top ? 0 : Math.sin(a) * 0.48 * s);
+      c.scale.y = 0.78; c.rotation.set(R() * 3, R() * 3, R() * 3); c.castShadow = true; live.add(c);
     }
-    const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.15 * s, 0.19 * s, 0.22, 6), M.trunk); stump.position.y = 0.11; g.add(stump);
+    const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.16 * s, 0.22 * s, 0.22, 6), M2.bark); stump.position.y = 0.11; g.add(stump);
   } else {
-    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), n.type === "rock" ? M.stone : M.rock);
-    rock.scale.set(1, 0.75, 0.9); rock.position.y = 0.3; rock.rotation.y = R() * 6; rock.castShadow = true; live.add(rock);
-    if (n.type === "copper" || n.type === "emerald") {
-      for (let k = 0; k < 5; k++) {
-        const cr = new THREE.Mesh(new THREE.OctahedronGeometry(n.type === "emerald" ? 0.2 : 0.14, 0), n.type === "emerald" ? M.emerald : M.copper);
-        const a = k * 1.3 + R(); cr.position.set(Math.cos(a) * 0.36, 0.4 + R() * 0.3, Math.sin(a) * 0.36); cr.scale.y = 1.6; cr.rotation.z = (R() - 0.5); live.add(cr);
-      }
-    }
-    const rubble = new THREE.Mesh(new THREE.DodecahedronGeometry(0.2, 0), M.rock); rubble.position.y = 0.08; g.add(rubble);
+    // 一叢六角石柱；礦石在柱頂鑲上有顏色的晶體
+    const ore = n.type === "copper" ? M.copper : n.type === "emerald" ? M.emerald : null;
+    const cols = [[0, 0, 0.3, 0.95], [0.3, 0.12, 0.22, 0.65], [-0.26, 0.18, 0.2, 0.5], [0.05, -0.3, 0.2, 0.42], [-0.2, -0.2, 0.16, 0.75]];
+    cols.forEach(([x, z, r, h], k) => {
+      h *= 0.85 + R() * 0.3;
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.92, r, h, 6), PILLAR[(n.id + k) % 3]); c.position.set(x, h / 2, z); c.rotation.y = R(); c.castShadow = true; live.add(c);
+      if (ore && k < 4) { const cap = new THREE.Mesh(n.type === "emerald" ? new THREE.OctahedronGeometry(r * 0.95, 0) : new THREE.CylinderGeometry(r * 0.7, r * 0.95, 0.14, 6), ore); cap.position.set(x, h + (n.type === "emerald" ? r * 0.5 : 0.07), z); if (n.type === "emerald") cap.scale.y = 1.5; live.add(cap); }
+    });
+    const rubble = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.12, 6), PILLAR[1]); rubble.position.y = 0.06; g.add(rubble);
   }
   live.rotation.y = R() * 6.28;
   scene.add(g);
@@ -475,7 +491,7 @@ function handleEvents() {
 /* ================= 主迴圈 ================= */
 let last = performance.now(), running = false, saveT = 0, uiT = 0, walkPhase = 0;
 const camTarget = new THREE.Vector3(), tmp = new THREE.Vector3();
-const camOff = innerHeight > innerWidth ? new THREE.Vector3(0, 15, 11.5) : new THREE.Vector3(0, 11.5, 9.5);
+const camOff = innerHeight > innerWidth ? new THREE.Vector3(0, 12.5, 9.2) : new THREE.Vector3(0, 9.5, 7.6);
 camTarget.set(G.player.x, 0, G.player.z);
 
 function frame(now) {
