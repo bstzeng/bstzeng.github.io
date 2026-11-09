@@ -1,10 +1,107 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>你好，GitHub</title>
-  </head>
-  <body>
-    <h1>覺得厲害</h1>
-  </body>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>覺得厲害 // NEON LAB</title>
+  <meta name="description" content="賽博龐克風格的互動實驗室：粒子、3D 與各種酷炫的小作品。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans+TC:wght@400;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="scanlines" aria-hidden="true"></div>
+  <div class="grid-floor" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="logo" href="#top">NEON<span>//</span>LAB</a>
+    <nav>
+      <a href="#about">關於</a>
+      <a href="#topics">主題</a>
+    </nav>
+  </header>
+
+  <!-- HERO：粒子文字 -->
+  <section class="hero" id="top">
+    <canvas id="particles" aria-label="由粒子組成的「覺得厲害」字樣，滑鼠移動可推開粒子，點擊會爆開"></canvas>
+    <div class="hero-ui">
+      <p class="tag mono">&gt; SYSTEM ONLINE<span class="cursor">_</span></p>
+      <h1 class="glitch" data-text="覺得厲害">覺得厲害</h1>
+      <p class="sub">歡迎來到霓虹實驗室：一個放滿互動實驗與 3D 作品的地方。</p>
+      <p class="hint mono">[ 移動滑鼠撥動粒子 · 點擊引爆 ]</p>
+      <a class="btn" href="#topics">進入實驗室 ↓</a>
+    </div>
+  </section>
+
+  <!-- 關於 -->
+  <section class="section" id="about">
+    <h2 class="section-title"><span class="mono">01</span> 關於這裡</h2>
+    <div class="about">
+      <div class="terminal">
+        <div class="term-bar"><i></i><i></i><i></i><span class="mono">~/neon-lab/readme.txt</span></div>
+        <pre class="mono" id="typer"></pre>
+      </div>
+      <ul class="stats">
+        <li><b class="count" data-to="1">0</b><span>進行中的主題</span></li>
+        <li><b class="count" data-to="2077">0</b><span>夜之城年份</span></li>
+        <li><b class="count" data-to="100">0</b><span>% 純前端</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 主題卡片 -->
+  <section class="section" id="topics">
+    <h2 class="section-title"><span class="mono">02</span> 主題</h2>
+    <div class="cards">
+      <a class="card" href="tower/" data-status="building">
+        <div class="card-glow"></div>
+        <div class="card-visual">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M40 105 L80 105 L74 80 L46 80 Z"/>
+              <path d="M46 80 L74 80 L69 55 L51 55 Z"/>
+              <path d="M51 55 L69 55 L64 32 L56 32 Z"/>
+              <path d="M56 32 L60 12 L64 32"/>
+              <circle cx="60" cy="68" r="5"/>
+              <circle cx="60" cy="92" r="6"/>
+              <path d="M30 105 H90"/>
+            </g>
+          </svg>
+        </div>
+        <div class="card-body">
+          <p class="card-no mono">TOPIC_01</p>
+          <h3>機關塔 3D</h3>
+          <p>可旋轉、可互動的 3D 機關塔模型，齒輪轉起來、機關動起來。</p>
+          <span class="badge mono">建造中</span>
+        </div>
+      </a>
+
+      <div class="card locked">
+        <div class="card-body">
+          <p class="card-no mono">TOPIC_02</p>
+          <h3>???</h3>
+          <p>下一個實驗正在載入中……</p>
+          <span class="badge mono">LOCKED</span>
+        </div>
+      </div>
+
+      <div class="card locked">
+        <div class="card-body">
+          <p class="card-no mono">TOPIC_03</p>
+          <h3>???</h3>
+          <p>訊號微弱，等待解密。</p>
+          <span class="badge mono">LOCKED</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer mono">
+    <span>© 2026 NEON//LAB</span>
+    <span>BUILT WITH &lt;3 &amp; CAFFEINE</span>
+  </footer>
+
+  <script src="assets/main.js"></script>
+</body>
 </html>
