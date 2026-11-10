@@ -32,8 +32,12 @@ export const RES = {
   shard: { name: "極光碎片", icon: "✨", color: 0x7affc8, w: 3 },
   silverbar: { name: "銀錠", icon: "🥈", color: 0xe8eef8, w: 3 },
   frost: { name: "霜之心", icon: "💠", color: 0x6ad8ff, w: 3 },
+  wool: { name: "羊毛", icon: "🐑", color: 0xfaf6ee, w: 3 },
+  auroraG: { name: "綠極光", icon: "🟩", color: 0x5affa0, w: 3 },
+  auroraB: { name: "藍極光", icon: "🟦", color: 0x5ab8ff, w: 3 },
+  auroraP: { name: "紫極光", icon: "🟪", color: 0xc07aff, w: 3 },
 };
-export const RES_ORDER = ["wood", "stone", "copper", "emerald", "plank", "ingot", "gel", "core", "fiber", "sandstone", "iron", "obsidian", "ruby", "steel", "glass", "shell", "magma", "cedar", "ice", "silver", "fish", "berry", "pelt", "pearl", "shard", "silverbar", "frost"];
+export const RES_ORDER = ["wood", "stone", "copper", "emerald", "plank", "ingot", "gel", "core", "fiber", "sandstone", "iron", "obsidian", "ruby", "steel", "glass", "shell", "magma", "cedar", "ice", "silver", "fish", "berry", "pelt", "pearl", "shard", "silverbar", "frost", "wool", "auroraG", "auroraB", "auroraP"];
 
 // 資源節點：hp 為需要的「工具傷害」，工具等級越高打越快
 export const NODES = {
@@ -49,7 +53,7 @@ export const NODES = {
   ruby: { tool: "pick", hp: 16, drop: { ruby: 1 }, respawn: 40, r: 0.5, minLevel: 4 },
   cedar: { tool: "axe", hp: 16, per: 4, drop: { cedar: 1 }, respawn: 16, r: 0.5 },
   bush: { tool: "axe", hp: 6, drop: { berry: 2 }, respawn: 22, r: 0.4 },
-  fishhole: { tool: "rod", hp: 5, drop: { fish: 1 }, bonus: { pearl: 0.14 }, respawn: 6, r: 0.4 },   // 站在冰洞旁自動釣魚
+  fishhole: { tool: "rod", hp: 5, drop: { fish: 1 }, bonus: { pearl: 0.18 }, respawn: 6, r: 0.4 },   // 站在冰洞旁自動釣魚
   icecrystal: { tool: "pick", hp: 18, drop: { ice: 2 }, respawn: 26, r: 0.5, minLevel: 4 },
   silver: { tool: "pick", hp: 26, drop: { silver: 2 }, respawn: 34, r: 0.55, minLevel: 5 },
 };
@@ -82,17 +86,21 @@ export const ISLANDS = [
   { id: "village", w: 3, q: W3Q - 1, r: 0, name: "漁村", cost: { cedar: 34, fish: 7 }, nodes: { bush: 3, fishhole: 1 }, cold: 1.5, fires: 1, plots: ["kitchen"] },
   { id: "tundra", w: 3, q: W3Q - 1, r: 1, name: "凍土礦場", cost: { cedar: 41, fish: 10 }, nodes: { icecrystal: 4, silver: 1 }, cold: 3, fires: 2, mobs: { wolf: 2 } },
   { id: "workshop", w: 3, q: W3Q, r: -1, name: "工坊", cost: { cedar: 51, ice: 17 }, nodes: { cedar: 2 }, cold: 2, fires: 1, plots: ["workbench3"] },
-  { id: "ranch", w: 3, q: W3Q + 1, r: -1, name: "牧場", cost: { cedar: 41, berry: 17 }, nodes: { bush: 5 }, cold: 2, fires: 2, mobs: { wolf: 2 } },
+  { id: "ranch", w: 3, q: W3Q + 1, r: -1, name: "牧場", cost: { cedar: 41, berry: 17 }, nodes: { bush: 4 }, cold: 2, fires: 2, mobs: { wolf: 2 }, sheep: 3 },
   { id: "glacier", w: 3, q: W3Q + 1, r: 1, name: "冰川裂隙", cost: { ice: 27, fish: 14 }, nodes: { icecrystal: 5 }, cold: 4, fires: 2, mobs: { wisp: 2 } },
   { id: "cave", w: 3, q: W3Q - 2, r: 2, name: "冰晶洞", cost: { ice: 34, pelt: 10 }, nodes: { silver: 4, icecrystal: 2 }, cold: 3.5, fires: 2, mobs: { wisp: 2 } },
   { id: "bliz1", w: 3, q: W3Q + 2, r: 0, name: "東暴風雪原", cost: { silverbar: 14, pelt: 14 }, nodes: { cedar: 3, silver: 2 }, cold: 4, blizzard: true, fires: 3, mobs: { wolf: 4 } },
   { id: "bliz2", w: 3, q: W3Q - 2, r: 0, name: "西暴風雪原", cost: { silverbar: 17, ice: 34 }, nodes: { icecrystal: 3, silver: 2 }, cold: 4, blizzard: true, fires: 3, mobs: { wolf: 3, wisp: 1 } },
-  { id: "ruins", w: 3, q: W3Q, r: 2, name: "古代遺跡", cost: { silverbar: 20, shard: 7 }, nodes: { silver: 3 }, cold: 3.5, fires: 2, mobs: { wisp: 3 } },
+  { id: "ruins", w: 3, q: W3Q, r: 2, name: "古代遺跡", cost: { silverbar: 20, shard: 7 }, nodes: { silver: 2 }, cold: 3.5, fires: 2, mobs: { wisp: 3 } },
   { id: "den", w: 3, q: W3Q - 1, r: 2, name: "雪怪巢穴", cost: { silverbar: 20, pelt: 17 }, nodes: { icecrystal: 2 }, cold: 4, fires: 2, mobs: { yeti: 2 } },
   { id: "icebridge", w: 3, q: W3Q + 2, r: -2, name: "冰橋", cost: { ice: 41, silverbar: 10 }, nodes: { fishhole: 3 }, cold: 3, fires: 1 },
-  { id: "altar", w: 3, q: W3Q, r: -2, name: "極光祭壇", cost: { silverbar: 27, shard: 17, pearl: 2 }, nodes: { icecrystal: 2 }, cold: 3.5, fires: 2, mobs: { wisp: 2 } },
-  { id: "throne", w: 3, q: W3Q, r: -3, name: "冰封王座", cost: { silverbar: 41, shard: 27, pearl: 4 }, cold: 2, boss3: true, plots: ["fire_throne_a", "fire_throne_b"] },
+  { id: "altar", w: 3, q: W3Q, r: -2, name: "極光祭壇", cost: { silverbar: 27, shard: 17, pearl: 2 }, plots: ["shrine", "bridge_altar_throne"], nodes: { icecrystal: 2 }, cold: 3.5, fires: 2, mobs: { wisp: 2 } },
+  { id: "throne", w: 3, q: W3Q, r: -3, name: "冰封王座", needs: "altarLit", cost: { silverbar: 41, shard: 14, pearl: 4 }, cold: 2, boss3: true, plots: ["fire_throne_a", "fire_throne_b"] },
 ];
+// 自動採集小屋：蓋好後工人會自己採這座地塊的資源、直接送進倉庫
+const GATHER = { pine: { wood: 30, stone: 20 }, gravel: { wood: 30, stone: 30 }, copper: { plank: 14, stone: 30 }, cactus: { fiber: 30, sandstone: 20 }, sand: { fiber: 30, sandstone: 30 }, iron: { steel: 10, glass: 8 }, cedarwood: { cedar: 40, ice: 10 }, lake: { cedar: 40, fish: 10 }, tundra: { silverbar: 8, cedar: 40 } };
+for (const isl of ISLANDS) if (GATHER[isl.id]) isl.plots = [...(isl.plots || []), `gather_${isl.id}`];
+ISLANDS.find((i) => i.id === "ranch").plots = ["bridge_ranch_icebridge"];
 const FIRE_SPOTS = [[-1.25, 0.75], [1.25, 0.75], [0, -1.45]];
 for (const isl of ISLANDS) if (isl.fires) isl.plots = [...(isl.plots || []), ...FIRE_SPOTS.slice(0, isl.fires).map((_, k) => `fire_${isl.id}_${k}`)];
 
@@ -123,6 +131,13 @@ Object.assign(PLOTS, {
   kitchen: { type: "kitchen", name: "廚房", pos: [0, 0], cost: { cedar: 16, fish: 6 }, r: 1.3 },
   workbench3: { type: "workbench", name: "工匠台", pos: [0, 0.1], cost: { cedar: 14, ice: 6 }, r: 1.3 },
 });
+for (const [id, cost] of Object.entries(GATHER)) PLOTS[`gather_${id}`] = { type: "gather", name: id === "lake" ? "釣魚小屋" : "採集小屋", pos: [0, 0], cost, r: 1.1 };
+Object.assign(PLOTS, {
+  // edge：蓋在通往哪一座地塊的邊上；那條邊要有橋才走得過去
+  bridge_ranch_icebridge: { type: "bridge", name: "冰橋", edge: "icebridge", cost: { ice: 20, cedar: 30 }, r: 0.9 },
+  bridge_altar_throne: { type: "bridge", name: "冰橋", edge: "throne", cost: { ice: 30, silverbar: 10 }, r: 0.9 },
+  shrine: { type: "altar", name: "極光祭壇", pos: [0, 0], cost: { auroraG: 3, auroraB: 3, auroraP: 3 }, r: 1.2 },
+});
 PLOTS.portal.to = "熔岩沙漠"; PLOTS.portal2.to = "森林群島";
 // 每座地塊可選的營火位置：想在哪裡取暖就蓋哪一個
 for (const isl of ISLANDS) if (isl.fires) FIRE_SPOTS.slice(0, isl.fires).forEach((pos, k) => { PLOTS[`fire_${isl.id}_${k}`] = { type: "fire", name: "營火", pos, cost: { cedar: 5 }, r: 0.9 }; });
@@ -135,9 +150,9 @@ export const UPGRADES = {
   sword: { name: "劍", icon: "🗡️", costs: [{ stone: 10, copper: 10, gel: 4 }, { ingot: 10, emerald: 4 }, { steel: 12, shell: 6 }, { steel: 20, ruby: 6, obsidian: 8 }, { silverbar: 18, shard: 6, pelt: 6 }], power: [8, 14, 24, 38, 58, 84] },
   bag: { name: "背包", icon: "🎒", costs: [{ wood: 18, stone: 10 }, { plank: 12, gel: 8 }, { ingot: 10, emerald: 4 }, { glass: 10, shell: 10 }, { pelt: 12, silverbar: 8 }], power: [20, 40, 70, 110, 160, 220] },
   boots: { name: "隔熱靴", icon: "🥾", costs: [{ fiber: 20, shell: 6 }, { glass: 12, obsidian: 10 }], power: [1, 0.65, 0.4] },
-  coat: { name: "保暖衣", icon: "🧥", costs: [{ pelt: 6, cedar: 10 }, { pelt: 14, silverbar: 8 }], power: [1, 0.7, 0.45] },
+  coat: { name: "保暖衣", icon: "🧥", costs: [{ pelt: 6, cedar: 10 }, { wool: 8, silverbar: 8 }], power: [1, 0.7, 0.45] },
   stoker: { name: "自動添柴", icon: "🪵", costs: [{ silverbar: 6, cedar: 30 }], power: [0, 1] },
-  hut: { name: "多一位小幫手", icon: "🤖", costs: [{ plank: 10, ingot: 6 }, { silverbar: 10, pelt: 8 }], power: [1, 2, 3] },
+  hut: { name: "多一位小幫手", icon: "🤖", costs: [{ plank: 10, ingot: 6 }, { silverbar: 10, wool: 6 }], power: [1, 2, 3] },
 };
 
 // at：在哪一種建築加工
@@ -155,10 +170,10 @@ export const MOBS = {
   scorpion: { hp: 55, dmg: 11, speed: 2.8, aggro: 3.0, cd: 0.9, respawn: 26, drop: { shell: 1 }, r: 0.38 },
   // 火蜥蜴：保持距離吐火球（落點有紅圈預告）
   salamander: { hp: 70, dmg: 0, speed: 1.9, aggro: 4.2, cd: 2.4, respawn: 30, drop: { shell: 2 }, r: 0.4, ranged: { keep: 2.1, warn: 1.0, r: 0.75, dmg: 14 } },
-  wolf: { hp: 70, dmg: 10, speed: 3.3, aggro: 3.2, cd: 0.9, respawn: 28, drop: { pelt: 1 }, r: 0.38 },
+  wolf: { hp: 70, dmg: 10, speed: 3.3, aggro: 3.2, cd: 0.9, respawn: 28, drop: { pelt: 1 }, bonus: { auroraG: 0.35 }, r: 0.38 },
   // 冰元素：冰彈打中會暫時變慢
-  wisp: { hp: 90, dmg: 0, speed: 1.8, aggro: 4.2, cd: 2.6, respawn: 32, drop: { shard: 1, ice: 1 }, r: 0.38, ranged: { keep: 2.2, warn: 1.0, r: 0.8, dmg: 9, slow: 2.5 } },
-  yeti: { hp: 300, dmg: 0, speed: 1.5, aggro: 4.5, cd: 2.8, respawn: 45, drop: { shard: 3, pelt: 2 }, r: 0.55, ranged: { keep: 1.8, warn: 1.1, r: 1.1, dmg: 18, slow: 1.5 } },
+  wisp: { hp: 90, dmg: 0, speed: 1.8, aggro: 4.2, cd: 2.6, respawn: 32, drop: { shard: 1, ice: 1 }, bonus: { auroraB: 0.35 }, r: 0.38, ranged: { keep: 2.2, warn: 1.0, r: 0.8, dmg: 9, slow: 2.5 } },
+  yeti: { hp: 300, dmg: 0, speed: 1.5, aggro: 4.5, cd: 2.8, respawn: 45, drop: { shard: 3, pelt: 2, auroraP: 1 }, r: 0.55, ranged: { keep: 1.8, warn: 1.1, r: 1.1, dmg: 18, slow: 1.5 } },
 };
 export const SLIME = MOBS.slime;
 export const BOSS = { hp: 520, r: 1.1, slamR: 1.6, slamDmg: 22, rockR: 1.0, rockDmg: 16, warn: 1.2, every: 2.4 };
@@ -178,3 +193,9 @@ export const FOODS = {
 export const FOOD_CAP = 6;
 // 霜之女王：三階段（冰柱 → 滑冰 → 召喚雪狼＋全場暴風雪）
 export const BOSS3 = { hp: 5200, r: 0.7, every: 2.3, icR: 0.85, icDmg: 15, icWarn: 1.1, slickR: 1.4, slickTtl: 9, slickEvery: 7, blink: 6.5, whiteout: 10 };
+// 牧場：餵莓果馴養雪羊，之後定時長羊毛
+export const SHEEP = { feed: 4, every: 30, max: 3 };
+// 採集小屋的工人
+export const WORKER = { speed: 2.4, work: 5 };
+// 古代遺跡：把三個冰塊推到三個壓力板上，寶箱就會打開
+export const RUINS = { plates: [[0, -1.4], [1.6, -0.5], [-1.6, -0.5]], blocks: [[0, -0.2], [0.8, 0.2], [-0.8, 0.2]], chest: [0, 1.7], blockR: 0.36, reward: { shard: 8, pearl: 2, silverbar: 10 } };
