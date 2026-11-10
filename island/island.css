@@ -69,3 +69,9 @@ button { font: inherit; cursor: pointer; }
 .check { display: flex; justify-content: space-between; align-items: center; font-weight: 700; padding: 6px 4px; }
 .check input { width: 22px; height: 22px; accent-color: var(--leaf); }
 .note { font-size: .75rem; color: #667; margin-top: 12px; }
+.bar.heat { width: min(88vw, 408px); height: 18px; }
+.bar.heat[hidden] { display: none; }
+.bar.heat i { background: linear-gradient(90deg, #ffd86a, #ff7a1a 60%, #e8201a); }
+.bar.heat.full i { animation: blink .4s infinite alternate; }
+.bar.heat.cool i { background: linear-gradient(90deg, #6ad8ff, #2a9aff); }
+.bar.heat span { line-height: 14px; }

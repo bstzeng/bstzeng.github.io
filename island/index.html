@@ -27,9 +27,10 @@
       <div class="bar hp" title="血量"><i id="hpFill"></i><span id="hpTxt">100</span></div>
       <div class="bar bag" title="背包"><i id="bagFill"></i><span id="bagTxt">🎒 0/20</span></div>
     </div>
+    <div class="row bars"><div class="bar heat" id="heatBar" title="熱度" hidden><i id="heatFill"></i><span id="heatTxt">🌡 0</span></div></div>
   </header>
 
-  <div class="boss" id="bossBar" hidden><p>石頭守衛者</p><div class="bar"><i id="bossFill"></i></div></div>
+  <div class="boss" id="bossBar" hidden><p id="bossName">石頭守衛者</p><div class="bar"><i id="bossFill"></i></div></div>
   <p class="toast" id="toast" role="status" aria-live="polite"></p>
   <p class="tip" id="tip"></p>
   <div class="joy" id="joy" aria-hidden="true"><i></i></div>
@@ -45,13 +46,13 @@
     <div class="card">
       <p class="tag">TOPIC_03 // ISLAND CRAFT</p>
       <h2>浮島工房</h2>
-      <p class="lead">世界一：綠草森林群島</p>
+      <p class="lead">世界一：綠草森林群島 · 世界二：熔岩沙漠</p>
       <ul class="howto">
         <li>🕹️ 拖曳畫面（電腦用 WASD）移動</li>
         <li>🌲 靠近樹、石頭會自動採集</li>
         <li>🏠 背包滿了回主島倉庫卸貨</li>
         <li>🪧 站上島邊的建造牌，投入資源開新島</li>
-        <li>🗿 最後擊敗魔王「石頭守衛者」</li>
+        <li>🗿 擊敗魔王後，蓋傳送門前往下一個世界</li>
       </ul>
       <button class="btn" id="bPlay">開始</button>
     </div>
@@ -69,8 +70,8 @@
   </div>
   <div class="overlay" id="clear" hidden>
     <div class="card">
-      <p class="tag">WORLD 1 CLEAR</p>
-      <h2>第一世界完成！</h2>
+      <p class="tag" id="clearTag">WORLD 1 CLEAR</p>
+      <h2 id="clearTitle">第一世界完成！</h2>
       <p class="lead" id="clearTxt"></p>
       <div class="actions"><button class="btn" id="bClear">繼續逛逛</button></div>
     </div>
