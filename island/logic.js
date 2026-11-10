@@ -70,13 +70,13 @@ function populate(G, isl) {
         const nr = NODES[type].r, f = tries < 300 ? 1 : tries < 600 ? 0.8 : 0.62; // 擠不下就放寬間距
         if (avoid.some(([ax, az, ar]) => dist(x, z, ax, az) < (ar + nr) * f)) continue;
         avoid.push([x, z, nr + 0.75]);
-        G.nodes.push({ type, island: isl.id, x, z, r: nr, hp: NODES[type].hp, alive: true, regrow: 0, shake: 0, id: G.nodes.length });
+        G.nodes.push({ type, island: isl.id, x, z, r: nr, hp: NODES[type].hp, given: 0, alive: true, regrow: 0, shake: 0, id: G.nodes.length });
         break;
       }
     }
   }
   for (let k = 0; k < (isl.slimes || 0); k++) {
-    const a = R() * Math.PI * 2, rr = 1 + R() * 2.2;
+    const a = R() * Math.PI * 2, rr = 0.8 + R() * 1.6;
     const s = { island: isl.id, x: isl.cx + Math.cos(a) * rr, z: isl.cz + Math.sin(a) * rr, hp: SLIME.hp, alive: true, respawn: 0, tx: isl.cx, tz: isl.cz, cd: 0, wander: 0, flash: 0, id: G.slimes.length };
     G.slimes.push(s);
   }
@@ -211,7 +211,7 @@ export function update(G, dt, mx = 0, mz = 0) {
 
   autoAct(G, dt);
   depositAndPay(G, dt);
-  for (const n of G.nodes) { n.shake = Math.max(0, n.shake - dt * 4); if (!n.alive) { n.regrow -= dt; if (n.regrow <= 0) { n.alive = true; n.hp = NODES[n.type].hp; G.events.push({ type: "regrow", node: n }); } } }
+  for (const n of G.nodes) { n.shake = Math.max(0, n.shake - dt * 4); if (!n.alive) { n.regrow -= dt; if (n.regrow <= 0) { n.alive = true; n.hp = NODES[n.type].hp; n.given = 0; G.events.push({ type: "regrow", node: n }); } } }
   factoryTick(G, dt);
   helpersTick(G, dt);
   slimesTick(G, dt);
@@ -251,12 +251,17 @@ function autoAct(G, dt) {
     target.hp -= UPGRADES[def.tool].power[G.levels[def.tool] - 1];
     target.shake = 1;
     G.events.push({ type: "hit", what: target.type, x: target.x, z: target.z });
+    let lost = 0;
+    if (def.per) { // 邊砍邊掉：每累積 per 點傷害掉一份
+      const due = Math.floor((def.hp - Math.max(0, target.hp)) / def.per + 1e-6);
+      for (; (target.given || 0) < due; target.given = (target.given || 0) + 1) lost += giveToBag(G, def.drop, [target.x, target.z]);
+    }
     if (target.hp <= 0) {
       target.alive = false; target.regrow = def.respawn;
-      const lost = giveToBag(G, def.drop, [target.x, target.z]);
+      if (!def.per) lost += giveToBag(G, def.drop, [target.x, target.z]);
       G.events.push({ type: "break", node: target });
-      if (lost) toast(G, "full", "背包滿了！多的直接送回倉庫");
     }
+    if (lost) toast(G, "full", "背包滿了！多的直接送回倉庫");
   } else {
     const dmg = UPGRADES.sword.power[G.levels.sword - 1];
     target.hp -= dmg; target.flash = 1;
@@ -293,8 +298,8 @@ function depositAndPay(G, dt) {
 
   // 站在建造牌 / 地基上：資源一個一個投進去
   let spot = null;
-  for (const s of G.signs) if (dist(P.x, P.z, s.x, s.z) < 1.0) { spot = { kind: "sign", s, cost: G.byId[s.target].cost, paid: (G.paid[s.target] ||= {}) }; break; }
-  if (!spot) for (const pl of G.plots) if (!pl.built && G.byId[pl.island].unlocked && dist(P.x, P.z, pl.x, pl.z) < 1.1) { spot = { kind: "plot", pl, cost: pl.cost, paid: pl.paid }; break; }
+  for (const s of G.signs) if (dist(P.x, P.z, s.x, s.z) < 0.8) { spot = { kind: "sign", s, cost: G.byId[s.target].cost, paid: (G.paid[s.target] ||= {}) }; break; }
+  if (!spot) for (const pl of G.plots) if (!pl.built && G.byId[pl.island].unlocked && dist(P.x, P.z, pl.x, pl.z) < 0.9) { spot = { kind: "plot", pl, cost: pl.cost, paid: pl.paid }; break; }
   G.payingAt = spot;
   if (!spot) { T.pay = 0; return; }
   T.pay -= dt;
@@ -428,7 +433,7 @@ function bossTick(G, dt) {
   if (!onIsland) { B.hp = Math.min(BOSS.hp, B.hp + 60 * dt); B.warns = []; B.active = false; return; }
   if (!B.active) { B.active = true; B.atkT = 1.5; G.events.push({ type: "bossWake" }); }
   const d = dist(B.x, B.z, P.x, P.z);
-  if (d > 2.6) { const s = Math.min(d - 2.6, 0.9 * dt); const nx = B.x + ((P.x - B.x) / d) * s, nz = B.z + ((P.z - B.z) / d) * s; if (dist(nx, nz, isl.cx, isl.cz) < APO - 1.6) { B.x = nx; B.z = nz; } }
+  if (d > 2.2) { const s = Math.min(d - 2.2, 0.9 * dt); const nx = B.x + ((P.x - B.x) / d) * s, nz = B.z + ((P.z - B.z) / d) * s; if (dist(nx, nz, isl.cx, isl.cz) < APO - 1.6) { B.x = nx; B.z = nz; } }
   B.facing = Math.atan2(P.x - B.x, P.z - B.z);
   B.atkT -= dt;
   const enraged = B.hp < BOSS.hp / 2;
@@ -438,7 +443,7 @@ function bossTick(G, dt) {
     if (Math.random() < 0.5) B.warns.push({ x: P.x, z: P.z, r: BOSS.slamR, t: BOSS.warn, dmg: BOSS.slamDmg, kind: "slam", T: BOSS.warn });
     else {
       const n = enraged ? 5 : 3;
-      for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, r = i === 0 ? 0 : 1 + Math.random() * 2; B.warns.push({ x: P.x + Math.cos(a) * r, z: P.z + Math.sin(a) * r, r: BOSS.rockR, t: BOSS.warn + i * 0.12, dmg: BOSS.rockDmg, kind: "rock", T: BOSS.warn + i * 0.12 }); }
+      for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, r = i === 0 ? 0 : 0.9 + Math.random() * 1.5; B.warns.push({ x: P.x + Math.cos(a) * r, z: P.z + Math.sin(a) * r, r: BOSS.rockR, t: BOSS.warn + i * 0.12, dmg: BOSS.rockDmg, kind: "rock", T: BOSS.warn + i * 0.12 }); }
     }
     G.events.push({ type: "bossAttack" });
   }

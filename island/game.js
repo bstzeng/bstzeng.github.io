@@ -86,7 +86,7 @@ function buildIsland(isl) {
   // 小花
   if (!boss) for (let i = 0; i < 7; i++) { const f = new THREE.Mesh(new THREE.OctahedronGeometry(0.07, 0), mat([0xffffff, 0xffe45a, 0xff9ad0][i % 3])); const a = R() * 6.28, r = R() * (APO - 0.6); f.position.set(Math.cos(a) * r, 0.07, Math.sin(a) * r); g.add(f); }
   if (boss) for (let i = 0; i < 6; i++) { const a = i * 1.05 + 0.4, h = 1.2 + R() * 1.2; const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.4, h, 6), PILLAR[i % 3]); sp.position.set(Math.cos(a) * (APO - 0.7), h / 2, Math.sin(a) * (APO - 0.7)); sp.castShadow = true; g.add(sp); }
-  if (isl.id === "swamp") for (let i = 0; i < 4; i++) { const p = new THREE.Mesh(new THREE.CircleGeometry(0.6 + R() * 0.4, 6), mat(0x4f7a2e)); p.rotation.x = -Math.PI / 2; const a = R() * 6.28, r = 1 + R() * 2.5; p.position.set(Math.cos(a) * r, 0.012, Math.sin(a) * r); g.add(p); }
+  if (isl.id === "swamp") for (let i = 0; i < 4; i++) { const p = new THREE.Mesh(new THREE.CircleGeometry(0.6 + R() * 0.4, 6), mat(0x4f7a2e)); p.rotation.x = -Math.PI / 2; const a = R() * 6.28, r = 0.6 + R() * (APO - 1.6); p.position.set(Math.cos(a) * r, 0.012, Math.sin(a) * r); g.add(p); }
   // 六角淺灘
   const foam = new THREE.Mesh(hexGeo(HR * 1.2, HR * 1.2, 0.04), new THREE.MeshBasicMaterial({ color: 0x7fd4ff, transparent: true, opacity: 0.4, depthWrite: false }));
   foam.position.y = -0.5; g.add(foam);
@@ -148,7 +148,7 @@ function labelSprite(w = 256, h = 128) {
   return sp;
 }
 function drawLabel(sp, title, lines) {
-  const key = title + lines.join("|");
+  const key = title + lines.map((l) => l.text + (l.ok ? "✓" : "")).join("|"); // 之前用物件直接 join，內容變了也不會重畫
   if (sp.userData.key === key) return;
   sp.userData.key = key;
   const { c, tex } = sp.userData, g = c.getContext("2d");
@@ -173,8 +173,8 @@ function buildPlot(pl) {
   const old = plotMeshes.get(pl.id); if (old) scene.remove(old.g);
   const g = new THREE.Group(); g.position.set(pl.x, 0, pl.z);
   if (!pl.built) {
-    const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.95, 0.08, 6), M.wood); pad.position.y = 0.04; g.add(pad);
-    for (const [x, z] of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.6, 0.08), M.woodDark); p.position.set(x, 0.3, z); g.add(p); }
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.85, 0.08, 6), M.wood); pad.position.y = 0.04; g.add(pad);
+    for (const [x, z] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.6, 0.08), M.woodDark); p.position.set(x, 0.3, z); g.add(p); }
     const lab = labelSprite(); lab.position.y = 1.7; g.add(lab); g.userData.label = lab;
   } else if (pl.id === "warehouse") {
     const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.1, 1.4), M.wood); body.position.y = 0.55; body.castShadow = true; g.add(body);
@@ -214,7 +214,7 @@ function rebuildSignMeshes() {
     const board = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 0.08), M.wood); board.position.y = 0.95; g.add(board);
     const tgt = G.byId[s.target];
     board.rotation.y = Math.atan2(tgt.cx - s.x, tgt.cz - s.z);
-    const pad = new THREE.Mesh(new THREE.CircleGeometry(0.85, 24), new THREE.MeshBasicMaterial({ color: 0xffc940, transparent: true, opacity: 0.35, depthWrite: false })); pad.rotation.x = -Math.PI / 2; pad.position.y = 0.02; g.add(pad);
+    const pad = new THREE.Mesh(new THREE.CircleGeometry(0.7, 24), new THREE.MeshBasicMaterial({ color: 0xffc940, transparent: true, opacity: 0.35, depthWrite: false })); pad.rotation.x = -Math.PI / 2; pad.position.y = 0.02; g.add(pad);
     const lab = labelSprite(); lab.position.y = 2.0; g.add(lab);
     scene.add(g); signMeshes.push({ g, s, lab, pad });
   }
@@ -288,6 +288,7 @@ function makeBoss() {
   const arms = [];
   for (const x of [-1.35, 1.35]) { const a = new THREE.Group(); a.position.set(x, 1.9, 0); const fist = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), M.boss); fist.position.y = -0.9; fist.castShadow = true; a.add(fist); g.add(a); arms.push(a); }
   for (const x of [-0.5, 0.5]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.5), M.boss); l.position.set(x, 0.35, 0); g.add(l); }
+  g.scale.setScalar(0.8);
   scene.add(g);
   bossMesh = { g, body, arms };
 }
@@ -555,11 +556,11 @@ function frame(now) {
   if (fac?.g.userData.gear) { fac.g.userData.gear.rotation.z += dt * (G.factory.cur ? 4 : 0.3); if (G.factory.cur && Math.random() < dt * 6) { const c = fac.g.userData.chim; burst(c.parent.position.x + 0.6, c.parent.position.z - 0.3, 0xdddddd, 1, 2.3); } }
   const wh = plotMeshes.get("warehouse"); if (wh?.g.userData.ring) wh.g.userData.ring.material.opacity = bagTotal(G) ? 0.45 + Math.sin(t * 5) * 0.25 : 0.25;
   // 標籤只在主角附近顯示，避免畫面太擠
-  const near = (x, z, r = 6.5) => Math.hypot(x - P.x, z - P.z) < r;
+  const near = (x, z, r = 3.0) => Math.hypot(x - P.x, z - P.z) < r;
   for (const pl of G.plots) { const pm = plotMeshes.get(pl.id); if (pm?.g.userData.label) { pm.g.userData.label.visible = near(pl.x, pl.z); drawLabel(pm.g.userData.label, PLOTS[pl.id].name, costLines(pl.cost, pl.paid)); } }
   for (const sm of signMeshes) {
     const isl = G.byId[sm.s.target];
-    sm.lab.visible = near(sm.s.x, sm.s.z, 5.5);
+    sm.lab.visible = near(sm.s.x, sm.s.z, 2.6);
     drawLabel(sm.lab, `開通「${isl.name}」`, costLines(isl.cost, G.paid[isl.id] || {}));
     const paying = G.payingAt && G.payingAt.s === sm.s;
     sm.pad.material.opacity = paying ? 0.6 + Math.sin(t * 10) * 0.2 : 0.3;
@@ -647,6 +648,6 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) { sav
 addEventListener("pagehide", save);
 addEventListener("resize", () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
-window.__island = { get G() { return G; }, camera };
+window.__island = { get G() { return G; }, camera, camOff, scene };
 renderRes();
 requestAnimationFrame((tt) => { last = tt; frame(tt); });
