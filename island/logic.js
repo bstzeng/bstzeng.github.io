@@ -1,5 +1,5 @@
 // 浮島工房 — 遊戲邏輯（純計算，不依賴 three.js，可在 Node 測試）
-import { HR, APO, RES, RES_ORDER, NODES, ISLANDS, PLOTS, PORTAL_PAIR, UPGRADES, RECIPES, PLAYER, MOBS, BOSS, BOSS2, HEAT, HELPER } from "./data.js";
+import { HR, APO, RES, RES_ORDER, NODES, ISLANDS, PLOTS, PORTAL_PAIR, UPGRADES, RECIPES, PLAYER, MOBS, BOSS, BOSS2, BOSS3, HEAT, COLD, FOODS, FOOD_CAP, HELPER } from "./data.js";
 
 const SQ3 = Math.sqrt(3);
 // 六個鄰居方向（axial）與對應的邊法向量（世界 xz）
@@ -17,11 +17,12 @@ export function createGame(save) {
     t: 0, events: [],
     islands: ISLANDS.map((d, i) => { const [cx, cz] = hexCenter(d.q, d.r); return { ...d, w: d.w || 1, idx: i, cx, cz, unlocked: !!d.start }; }),
     paid: {},            // 目標島 id → 已投入的資源
-    plots: [], signs: [], nodes: [], slimes: [], lavas: [], warns: [], boss: null, boss2: null, helpers: [], world: 1,
-    bag: emptyRes(), store: emptyRes(), levels: { axe: 1, pick: 1, sword: 1, bag: 1, boots: 1, hut: 1 },
+    plots: [], signs: [], nodes: [], slimes: [], lavas: [], warns: [], slicks: [], boss: null, boss2: null, boss3: null, helpers: [], world: 1,
+    food: { grill: 0, soup: 0, pie: 0 }, storm: { t: COLD.stormGap, on: false },
+    bag: emptyRes(), store: emptyRes(), levels: { axe: 1, pick: 1, sword: 1, bag: 1, boots: 1, coat: 1, stoker: 1, hut: 1 },
     factory: { queue: [], t: 0, cur: null },
-    bossDefeated: false, boss2Defeated: false,
-    player: { x: 0, z: -0.2, hp: PLAYER.maxHp, heat: 0, facing: 0, swingT: 0, lastHurt: -99, moving: false, action: null, target: null },
+    bossDefeated: false, boss2Defeated: false, boss3Defeated: false,
+    player: { x: 0, z: -0.2, hp: PLAYER.maxHp, heat: 0, cold: 0, vx: 0, vz: 0, warmT: 0, fastT: 0, slowT: 0, facing: 0, swingT: 0, lastHurt: -99, moving: false, action: null, target: null },
     timers: { deposit: 0, pay: 0, burn: 0, toast: {} },
   };
   G.byId = Object.fromEntries(G.islands.map((i) => [i.id, i]));
@@ -30,13 +31,14 @@ export function createGame(save) {
     Object.assign(G.paid, save.paid || {});
     Object.assign(G.bag, save.bag || {}); Object.assign(G.store, save.store || {});
     Object.assign(G.levels, save.levels || {});
-    G.bossDefeated = !!save.bossDefeated; G.boss2Defeated = !!save.boss2Defeated;
-    if (save.player) Object.assign(G.player, { x: save.player.x, z: save.player.z, hp: save.player.hp ?? PLAYER.maxHp, heat: save.player.heat || 0 });
+    G.bossDefeated = !!save.bossDefeated; G.boss2Defeated = !!save.boss2Defeated; G.boss3Defeated = !!save.boss3Defeated;
+    Object.assign(G.food, save.food || {});
+    if (save.player) Object.assign(G.player, { x: save.player.x, z: save.player.z, hp: save.player.hp ?? PLAYER.maxHp, heat: save.player.heat || 0, cold: save.player.cold || 0 });
   }
   for (const isl of G.islands) {
     for (const pid of isl.plots || []) {
       const P = PLOTS[pid];
-      G.plots.push({ id: pid, type: P.type || pid, needs: P.needs, w: isl.w, island: isl.id, x: isl.cx + P.pos[0], z: isl.cz + P.pos[1], r: P.r, cost: P.cost || {}, built: !!P.prebuilt || !!save?.built?.includes(pid), paid: save?.plotPaid?.[pid] || {} });
+      G.plots.push({ id: pid, type: P.type || pid, needs: P.needs, w: isl.w, island: isl.id, x: isl.cx + P.pos[0], z: isl.cz + P.pos[1], r: P.r, cost: P.cost || {}, built: !!P.prebuilt || !!save?.built?.includes(pid), paid: save?.plotPaid?.[pid] || {}, eternal: !!P.eternal, fuel: save?.fuel?.[pid] ?? COLD.fuelStart });
     }
   }
   for (const isl of G.islands) if (isl.unlocked) populate(G, isl);
@@ -51,17 +53,18 @@ export function serialize(G) {
   return {
     v: 1,
     unlocked: G.islands.filter((i) => i.unlocked).map((i) => i.id),
-    paid: G.paid, bag: G.bag, store: G.store, levels: G.levels, bossDefeated: G.bossDefeated, boss2Defeated: G.boss2Defeated,
+    paid: G.paid, bag: G.bag, store: G.store, levels: G.levels, bossDefeated: G.bossDefeated, boss2Defeated: G.boss2Defeated, boss3Defeated: G.boss3Defeated, food: G.food,
+    fuel: Object.fromEntries(G.plots.filter((p) => p.type === "fire" && p.built && !p.eternal).map((p) => [p.id, Math.round(p.fuel)])),
     built: G.plots.filter((p) => p.built).map((p) => p.id),
     plotPaid: Object.fromEntries(G.plots.map((p) => [p.id, p.paid])),
-    player: { x: G.player.x, z: G.player.z, hp: G.player.hp, heat: G.player.heat },
+    player: { x: G.player.x, z: G.player.z, hp: G.player.hp, heat: G.player.heat, cold: G.player.cold },
   };
 }
 
 function populate(G, isl) {
   const R = rng(isl.idx * 7919 + 17);
   const avoid = [];
-  for (const p of G.plots) if (p.island === isl.id) avoid.push([p.x, p.z, p.r * 0.65 + 0.45]);
+  for (const p of G.plots) if (p.island === isl.id) avoid.push([p.x, p.z, p.type === "portal" ? 1.9 : p.r * 0.65 + 0.45]);
   for (const n of NORMALS) avoid.push([isl.cx + n[0] * (APO - 0.95), isl.cz + n[1] * (APO - 0.95), 1.05]);
   avoid.push([isl.cx, isl.cz, isl.plots ? 0.6 : 1.0]);
   for (const [type, count] of Object.entries(isl.nodes || {})) {
@@ -94,6 +97,7 @@ function populate(G, isl) {
     G.slimes.push({ kind, island: isl.id, x: isl.cx + Math.cos(a) * rr, z: isl.cz + Math.sin(a) * rr, hp: MOBS[kind].hp, alive: true, respawn: 0, tx: isl.cx, tz: isl.cz, cd: 1 + R(), wander: 0, flash: 0, id: G.slimes.length });
   }
   if (isl.boss) G.boss = { x: isl.cx, z: isl.cz - 0.5, hp: G.bossDefeated ? 0 : BOSS.hp, alive: !G.bossDefeated, atkT: BOSS.every, warns: [], flash: 0, island: isl.id, anim: 0 };
+  if (isl.boss3) G.boss3 = { x: isl.cx, z: isl.cz - 0.6, hp: G.boss3Defeated ? 0 : BOSS3.hp, alive: !G.boss3Defeated, atk: 2, slick: 4, blink: BOSS3.blink, phase: 1, flash: 0, island: isl.id, active: false };
   if (isl.boss2) G.boss2 = { x: isl.cx, z: isl.cz, hp: G.boss2Defeated ? 0 : BOSS2.hp, alive: !G.boss2Defeated, state: "up", st: BOSS2.up, spit: 1, flash: 0, island: isl.id, active: false };
 }
 
@@ -201,7 +205,7 @@ export function enqueue(G, recipeId, n) {
 }
 export function nearPlot(G) {
   const p = G.player;
-  return G.plots.find((pl) => pl.built && pl.type !== "portal" && pl.type !== "well" && dist(p.x, p.z, pl.x, pl.z) < pl.r + 0.6) || null;
+  return G.plots.find((pl) => pl.built && pl.type !== "portal" && pl.type !== "well" && pl.type !== "fire" && dist(p.x, p.z, pl.x, pl.z) < pl.r + 0.6) || null;
 }
 
 /* ================= 主更新 ================= */
@@ -211,21 +215,28 @@ export function update(G, dt, mx = 0, mz = 0) {
   const L = Math.hypot(mx, mz);
   if (L > 1) { mx /= L; mz /= L; }
   P.moving = L > 0.08;
-  if (P.moving) {
-    P.facing = Math.atan2(mx, mz);
-    const sp = PLAYER.speed * Math.min(1, L);
-    const nx = P.x + mx * sp * dt, nz = P.z + mz * sp * dt;
+  if (P.moving) P.facing = Math.atan2(mx, mz);
+  P.speedMul = (G.t < P.fastT ? 1.35 : 1) * (G.t < P.slowT ? 0.6 : 1) * (P.cold >= COLD.max ? 0.55 : P.cold >= COLD.slowAt ? 0.78 : 1);
+  const sp = PLAYER.speed * Math.min(1, L) * P.speedMul;
+  const wantX = P.moving ? mx * sp : 0, wantZ = P.moving ? mz * sp : 0;
+  P.onSlick = G.slicks.some((k) => dist(P.x, P.z, k.x, k.z) < k.r);
+  if (P.onSlick) { const k = Math.min(1, dt * 1.6); P.vx += (wantX * 1.15 - P.vx) * k; P.vz += (wantZ * 1.15 - P.vz) * k; } // 滑冰：有慣性，不好轉彎
+  else { P.vx = wantX; P.vz = wantZ; }
+  if (Math.abs(P.vx) + Math.abs(P.vz) > 1e-3) {
+    const nx = P.x + P.vx * dt, nz = P.z + P.vz * dt;
     if (walkable(G, nx, nz)) { P.x = nx; P.z = nz; }
-    else if (walkable(G, nx, P.z)) P.x = nx;
-    else if (walkable(G, P.x, nz)) P.z = nz;
+    else if (walkable(G, nx, P.z)) { P.x = nx; P.vz = 0; }
+    else if (walkable(G, P.x, nz)) { P.z = nz; P.vx = 0; }
+    else { P.vx = P.vz = 0; }
   }
   // 推開障礙物（樹、石頭、建築、怪物）
   const push = (cx, cz, r) => { const d = dist(P.x, P.z, cx, cz), m = r + 0.35; if (d < m && d > 1e-6) { const nx = P.x + ((P.x - cx) / d) * (m - d), nz = P.z + ((P.z - cz) / d) * (m - d); if (walkable(G, nx, nz)) { P.x = nx; P.z = nz; } } };
   for (const n of G.nodes) if (n.alive) push(n.x, n.z, n.r * 0.8);
-  for (const pl of G.plots) if (pl.built && pl.type !== "factory" && pl.type !== "portal") push(pl.x, pl.z, pl.type === "warehouse" ? 1.0 : pl.type === "furnace" ? 0.8 : 0.6);
+  for (const pl of G.plots) if (pl.built && pl.type !== "factory" && pl.type !== "portal") push(pl.x, pl.z, pl.type === "warehouse" ? 1.0 : pl.type === "furnace" ? 0.8 : pl.type === "fire" ? 0.25 : 0.6);
   for (const s of G.slimes) if (s.alive) push(s.x, s.z, 0.35);
   if (G.boss && G.boss.alive) push(G.boss.x, G.boss.z, BOSS.r);
   if (G.boss2 && G.boss2.alive && G.boss2.state === "up") push(G.boss2.x, G.boss2.z, BOSS2.r);
+  if (G.boss3 && G.boss3.alive) push(G.boss3.x, G.boss3.z, BOSS3.r);
   G.world = islandAt(G, P.x, P.z)?.w || G.world;
   portalTick(G, dt);
 
@@ -237,13 +248,16 @@ export function update(G, dt, mx = 0, mz = 0) {
   slimesTick(G, dt);
   bossTick(G, dt);
   wormTick(G, dt);
+  queenTick(G, dt);
   warnsTick(G, G.warns, dt);
   G.warns = G.warns.filter((w) => w.t > -0.35);
   heatTick(G, dt);
+  coldTick(G, dt);
   if (G.t - P.lastHurt > PLAYER.regenDelay) P.hp = Math.min(PLAYER.maxHp, P.hp + PLAYER.regen * dt);
   if (P.hp <= 0) {
-    const home = G.world === 2 ? G.byId.oasis : G.byId.home;
-    Object.assign(P, { x: home.cx, z: home.cz - 0.2, hp: 35, heat: 0, lastHurt: G.t });
+    const home = G.world === 3 ? G.byId.camp : G.world === 2 ? G.byId.oasis : G.byId.home;
+    Object.assign(P, { x: home.cx, z: home.cz - 0.2, hp: 35, heat: 0, cold: 0, vx: 0, vz: 0, lastHurt: G.t });
+    G.slicks = [];
     if (G.boss) G.boss.warns = [];
     G.warns = [];
     G.events.push({ type: "death" });
@@ -257,6 +271,7 @@ function autoAct(G, dt) {
   for (const s of G.slimes) if (s.alive) { const d = dist(P.x, P.z, s.x, s.z) - 0.35; if (d < PLAYER.reach + 0.45 && d < bd) { bd = d; target = s; kind = "slime"; } }
   if (G.boss2 && G.boss2.alive && G.boss2.state === "up") { const d = dist(P.x, P.z, G.boss2.x, G.boss2.z) - BOSS2.r; if (d < PLAYER.reach + 0.5) { target = G.boss2; kind = "boss2"; bd = d; } }
   if (G.boss && G.boss.alive) { const d = dist(P.x, P.z, G.boss.x, G.boss.z) - BOSS.r; if (d < PLAYER.reach + 0.5) { target = G.boss; kind = "boss"; bd = d; } }
+  if (G.boss3 && G.boss3.alive && G.boss3.active) { const d = dist(P.x, P.z, G.boss3.x, G.boss3.z) - BOSS3.r; if (d < PLAYER.reach + 0.5 && (kind !== "slime" || d < bd)) { target = G.boss3; kind = "boss3"; bd = d; } }
   if (!target) {
     const full = bagTotal(G) >= bagCap(G);
     for (const n of G.nodes) if (n.alive) {
@@ -274,7 +289,7 @@ function autoAct(G, dt) {
   G.events.push({ type: "swing", tool: P.action, x: target.x, z: target.z });
   if (kind === "node") {
     const def = NODES[target.type];
-    target.hp -= UPGRADES[def.tool].power[G.levels[def.tool] - 1];
+    target.hp -= UPGRADES[def.tool] ? UPGRADES[def.tool].power[G.levels[def.tool] - 1] : 1;
     target.shake = 1;
     G.events.push({ type: "hit", what: target.type, x: target.x, z: target.z });
     let lost = 0;
@@ -285,6 +300,7 @@ function autoAct(G, dt) {
     if (target.hp <= 0) {
       target.alive = false; target.regrow = def.respawn;
       if (!def.per) lost += giveToBag(G, def.drop, [target.x, target.z]);
+      for (const [k, chance] of Object.entries(def.bonus || {})) if (Math.random() < chance) { lost += giveToBag(G, { [k]: 1 }, [target.x, target.z]); G.events.push({ type: "toast", msg: `✨ 釣到 ${RES[k].icon}${RES[k].name}！` }); }
       G.events.push({ type: "break", node: target });
     }
     if (lost) toast(G, "full", "背包滿了！多的直接送回倉庫");
@@ -301,6 +317,13 @@ function autoAct(G, dt) {
         const drop = { ...def.drop }; if (target.kind === "slime" && Math.random() < 0.4) drop.copper = 1;
         giveToBag(G, drop, [target.x, target.z]);
         G.events.push({ type: "slimeDead", kind: target.kind, x: target.x, z: target.z });
+      }
+    } else if (kind === "boss3") {
+      if (target.hp <= 0) {
+        target.alive = false; G.boss3Defeated = true; G.warns = []; G.slicks = [];
+        for (const m of G.slimes) if (m.temp) m.alive = false;
+        giveToBag(G, { frost: 1, silverbar: 8, shard: 4 }, [target.x, target.z]);
+        G.events.push({ type: "boss3Dead", x: target.x, z: target.z });
       }
     } else if (kind === "boss2") {
       if (target.hp <= 0) {
@@ -435,6 +458,7 @@ function slimesTick(G, dt) {
     s.flash = Math.max(0, s.flash - dt * 4);
     const isl = G.byId[s.island];
     if (!s.alive) {
+      if (s.temp) continue;
       s.respawn -= dt;
       if (s.respawn <= 0) { const a = Math.random() * 6.28; Object.assign(s, { alive: true, hp: def.hp, x: isl.cx + Math.cos(a) * 2, z: isl.cz + Math.sin(a) * 2 }); }
       continue;
@@ -449,7 +473,7 @@ function slimesTick(G, dt) {
         if (dp < keep - 0.5) { tx = s.x + (s.x - P.x); tz = s.z + (s.z - P.z); stop = 0; }
         else if (dp > keep + 0.7) { tx = P.x; tz = P.z; }
         else { tx = s.x; tz = s.z; }
-        if (s.cd <= 0) { s.cd = def.cd; G.warns.push({ x: P.x, z: P.z, r: def.ranged.r, t: def.ranged.warn, T: def.ranged.warn, dmg: def.ranged.dmg, kind: "fire" }); G.events.push({ type: "spit", x: s.x, z: s.z }); }
+        if (s.cd <= 0) { s.cd = def.cd; G.warns.push({ x: P.x, z: P.z, r: def.ranged.r, t: def.ranged.warn, T: def.ranged.warn, dmg: def.ranged.dmg, slow: def.ranged.slow, kind: def.ranged.slow ? "ice" : "fire" }); G.events.push({ type: "spit", x: s.x, z: s.z }); }
       } else { tx = P.x; tz = P.z; }
     } else {
       s.angry = false;
@@ -497,7 +521,7 @@ function warnsTick(G, list, dt) {
   const P = G.player;
   for (const w of list) {
     w.t -= dt;
-    if (w.t <= 0 && !w.done) { w.done = true; G.events.push({ type: "boom", x: w.x, z: w.z, r: w.r, kind: w.kind }); if (dist(P.x, P.z, w.x, w.z) < w.r + 0.25) hurt(G, w.dmg); }
+    if (w.t <= 0 && !w.done) { w.done = true; G.events.push({ type: "boom", x: w.x, z: w.z, r: w.r, kind: w.kind }); if (dist(P.x, P.z, w.x, w.z) < w.r + 0.25) { hurt(G, w.dmg); if (w.slow) P.slowT = G.t + w.slow; } }
   }
 }
 
@@ -535,6 +559,110 @@ function wormTick(G, dt) {
   if (enraged && dist(P.x, P.z, isl.cx, isl.cz) > APO - BOSS2.ringIn) scald(G, BOSS2.ringDmg * dt, 20 * dt);
 }
 
+function queenTick(G, dt) {
+  const B = G.boss3; if (!B) return;
+  B.flash = Math.max(0, B.flash - dt * 4);
+  if (!B.alive) return;
+  const P = G.player, isl = G.byId[B.island];
+  if (islandAt(G, P.x, P.z) !== isl) {
+    B.hp = Math.min(BOSS3.hp, B.hp + 200 * dt); B.active = false; B.phase = 1; B.summoned = false; G.slicks = [];
+    for (const m of G.slimes) if (m.temp) m.alive = false;
+    return;
+  }
+  if (!B.active) { B.active = true; B.atk = 2; G.events.push({ type: "bossWake3" }); }
+  const phase = B.hp > BOSS3.hp * 0.66 ? 1 : B.hp > BOSS3.hp * 0.33 ? 2 : 3;
+  if (phase !== B.phase) { B.phase = phase; G.events.push({ type: "bossPhase", phase }); }
+  const d = dist(B.x, B.z, P.x, P.z);
+  if (d > 2.4) { const s = Math.min(d - 2.4, 1.2 * dt); const nx = B.x + ((P.x - B.x) / d) * s, nz = B.z + ((P.z - B.z) / d) * s; if (dist(nx, nz, isl.cx, isl.cz) < APO - 1.0) { B.x = nx; B.z = nz; } }
+  B.facing = Math.atan2(P.x - B.x, P.z - B.z);
+  B.atk -= dt; B.slick -= dt; B.blink -= dt;
+  if (B.atk <= 0) { // 冰柱
+    B.atk = phase === 3 ? BOSS3.every * 0.8 : BOSS3.every;
+    for (let i = 0; i < 1 + phase; i++) { const a = Math.random() * 6.28, r = i === 0 ? 0 : 0.9 + Math.random() * 1.4; G.warns.push({ x: P.x + Math.cos(a) * r, z: P.z + Math.sin(a) * r, r: BOSS3.icR, t: BOSS3.icWarn + i * 0.14, T: BOSS3.icWarn + i * 0.14, dmg: BOSS3.icDmg, slow: 1.2, kind: "ice" }); }
+    G.events.push({ type: "bossAttack" });
+  }
+  if (phase >= 2 && B.slick <= 0) { // 把主角腳下凍成滑冰
+    B.slick = BOSS3.slickEvery;
+    G.slicks.push({ x: P.x, z: P.z, r: BOSS3.slickR, ttl: BOSS3.slickTtl });
+    if (G.slicks.length > 3) G.slicks.shift();
+    G.events.push({ type: "slick", x: P.x, z: P.z });
+  }
+  if (B.blink <= 0) { // 瞬移
+    B.blink = BOSS3.blink;
+    const a = Math.random() * 6.28, r = Math.random() * (APO - 1.6);
+    G.events.push({ type: "blink", x: B.x, z: B.z });
+    B.x = isl.cx + Math.cos(a) * r; B.z = isl.cz + Math.sin(a) * r;
+  }
+  if (phase === 3 && !B.summoned) { // 召喚雪狼
+    B.summoned = true;
+    for (let i = 0; i < 2; i++) { const a = i * Math.PI + 0.5; G.slimes.push({ kind: "wolf", temp: true, island: isl.id, x: isl.cx + Math.cos(a) * 2.2, z: isl.cz + Math.sin(a) * 2.2, hp: MOBS.wolf.hp, alive: true, respawn: 0, tx: isl.cx, tz: isl.cz, cd: 1, wander: 0, flash: 0, id: G.slimes.length }); }
+    G.events.push({ type: "summon" });
+  }
+  for (const k of G.slicks) k.ttl -= dt;
+  G.slicks = G.slicks.filter((k) => k.ttl > 0);
+}
+
+/* ================= 寒冷 / 營火 / 暴風雪 / 料理 ================= */
+export function nearFire(G) {
+  const P = G.player;
+  return G.plots.some((pl) => pl.type === "fire" && pl.built && (pl.eternal || pl.fuel > 0) && dist(P.x, P.z, pl.x, pl.z) < COLD.fireR);
+}
+function coldTick(G, dt) {
+  const P = G.player, T = G.timers, isl = islandAt(G, P.x, P.z);
+  // 暴風雪：只在冰原計時
+  const S = G.storm;
+  if (G.world === 3) {
+    S.t -= dt;
+    if (!S.on && S.t <= 4 && !S.warned) { S.warned = true; G.events.push({ type: "stormSoon" }); }
+    if (S.t <= 0) { S.on = !S.on; S.warned = false; S.t = S.on ? COLD.stormOn : COLD.stormGap + Math.random() * 16; G.events.push({ type: S.on ? "stormStart" : "stormEnd" }); }
+  }
+  // 營火：燒柴、添柴
+  for (const pl of G.plots) if (pl.type === "fire" && pl.built && !pl.eternal) {
+    if (G.world === 3) pl.fuel = Math.max(0, pl.fuel - dt);
+    const near = dist(P.x, P.z, pl.x, pl.z) < 1.3;
+    if (pl.fuel <= COLD.fuelMax - COLD.perLog && have(G, "cedar") > 0 && ((near && G.t - (T.log || 0) > 0.25) || (G.levels.stoker > 1 && pl.fuel < 45 && G.store.cedar > 0))) {
+      if (near) T.log = G.t;
+      if (near && G.bag.cedar > 0) G.bag.cedar--; else if (G.store.cedar > 0) G.store.cedar--; else continue;
+      pl.fuel += COLD.perLog;
+      if (near) G.events.push({ type: "fly", res: "cedar", from: "player", to: [pl.x, pl.z] });
+    }
+  }
+  let rate = (isl?.cold || 0) * UPGRADES.coat.power[G.levels.coat - 1];
+  if (S.on && isl?.blizzard) rate *= COLD.stormMul;
+  const B = G.boss3;
+  if (B && B.alive && B.active && B.phase === 3 && isl?.id === B.island) rate += BOSS3.whiteout;
+  if (G.t < P.warmT) rate = 0;
+  P.warming = nearFire(G);
+  if (P.warming) P.cold -= COLD.fireWarm * dt;
+  else if (rate > 0) P.cold += rate * dt;
+  else P.cold -= COLD.idleWarm * dt;
+  P.cold = Math.max(0, Math.min(COLD.max, P.cold));
+  if (P.cold >= COLD.max) {
+    P.hp -= COLD.freeze * dt; P.lastHurt = G.t;
+    if (G.t - T.burn > 0.6) { T.burn = G.t; G.events.push({ type: "freeze", x: P.x, z: P.z }); }
+    toast(G, "cold", "🥶 快凍僵了！到營火旁取暖，或喝熱湯", 4);
+  }
+}
+export function cook(G, id) {
+  const F = FOODS[id];
+  if (!G.plots.some((p) => p.type === "kitchen" && p.built)) return false;
+  if (G.food[id] >= FOOD_CAP) { toast(G, "afford", `最多帶 ${FOOD_CAP} 份`, 0.5); return false; }
+  if (!canAfford(G, F.from)) { toast(G, "afford", "材料不足", 0.5); return false; }
+  spend(G, F.from); G.food[id]++;
+  G.events.push({ type: "cook", id });
+  return true;
+}
+export function eat(G, id) {
+  const F = FOODS[id], P = G.player;
+  if (!G.food[id] || G.t - (G.timers.eat ?? -9) < 0.8) return false;
+  G.timers.eat = G.t; G.food[id]--;
+  if (F.heal) P.hp = Math.min(PLAYER.maxHp, P.hp + F.heal);
+  if (F.warm) { P.warmT = G.t + F.warm; P.cold = Math.max(0, P.cold - 50); }
+  if (F.fast) P.fastT = G.t + F.fast;
+  G.events.push({ type: "eat", id });
+  return true;
+}
+
 /* ================= 熱度 / 熔岩 / 傳送門 ================= */
 function scald(G, dmg, heat) {
   const P = G.player;
@@ -561,7 +689,7 @@ function portalTick(G, dt) {
   const near = G.plots.find((pl) => pl.type === "portal" && pl.built && dist(P.x, P.z, pl.x, pl.z) < 1.2);
   if (!near) { P.portalLock = false; P.portalT = 0; return; }
   // 要在門上站定一下才傳送，路過不會誤觸
-  if (P.portalLock || P.moving || dist(P.x, P.z, near.x, near.z) > 0.7) { P.portalT = 0; return; }
+  if (P.portalLock || P.moving || P.action || dist(P.x, P.z, near.x, near.z) > 0.7) { P.portalT = 0; return; }
   P.portalT = (P.portalT || 0) + dt;
   if (P.portalT < 0.9) return;
   P.portalT = 0;
