@@ -1,7 +1,7 @@
 // 浮島工房 — 3D 畫面、操作、介面、音效（遊戲規則都在 logic.js）
 import * as THREE from "three";
-import { HR, APO, RES, RES_ORDER, NODES, PLOTS, UPGRADES, RECIPES, PLAYER, BOSS, ISLANDS } from "./data.js";
-import { createGame, serialize, update, upgrade, enqueue, nearPlot, bagCap, bagTotal, have, canAfford, islandAt } from "./logic.js";
+import { HR, APO, RES, RES_ORDER, NODES, PLOTS, UPGRADES, RECIPES, PLAYER, BOSS, BOSS2, HEAT, ISLANDS } from "./data.js";
+import { createGame, serialize, update, upgrade, enqueue, nearPlot, bagCap, bagTotal, have, canAfford, islandAt, plotAvailable } from "./logic.js";
 
 const $ = (id) => document.getElementById(id);
 const SAVE_KEY = "island.save.v1";
@@ -27,7 +27,8 @@ scene.background = new THREE.Color(0x12405e);
 scene.fog = new THREE.Fog(0x12405e, 26, 62);
 const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 200);
 
-scene.add(new THREE.HemisphereLight(0xdff4ff, 0x3a6a3a, 1.1));
+const hemi = new THREE.HemisphereLight(0xdff4ff, 0x3a6a3a, 1.1);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff0d8, 2.4);
 sun.castShadow = true;
 sun.shadow.mapSize.set(isSmall ? 1024 : 2048, isSmall ? 1024 : 2048);
@@ -49,6 +50,23 @@ const M = {
 const islandTheme = { home: 0x86d93c, pine: 0x7ed13a, gravel: 0x9ed24a, copper: 0xa8d048, works: 0x8ede44, oldwood: 0x6fc436, emerald: 0x74d86a, swamp: 0x7fae3e, boss: 0x8b8fa6 };
 const CANOPY = [0x9ab84a, 0x8cae42, 0xa6c254, 0x80a23c].map((c) => mat(c));
 const PILLAR = [0xb3a8e0, 0x9f94d2, 0xc2b8ea].map((c) => mat(c));
+// 世界二：熔岩沙漠
+const islandTheme2 = { oasis: 0xe9cf86, cactus: 0xe6c878, sand: 0xdcb86a, iron: 0xcfa866, forge: 0xd8b070, rift: 0x9a6a56, ruby: 0xa8705a, nest: 0x8e5c4c, rim: 0x5c4040, crater: 0x3c2c30 };
+const SAND = [0xe0b06a, 0xcf9c58, 0xeac282].map((c) => mat(c));
+const IRONROCK = [0x6a6e7c, 0x585c6a, 0x7c8090].map((c) => mat(c));
+const BASALT = [0x3a3442, 0x2c2834, 0x48414f].map((c) => mat(c));
+const M3 = {
+  ledge: mat(0xb8894a), ledgeHot: mat(0x4a3030), cactus: mat(0x5fa84a), cactus2: mat(0x4c9440), dry: mat(0xc9a25a),
+  rust: mat(0xb8623a), obsidian: mat(0x241e30, { roughness: 0.15, metalness: 0.4 }), ruby: mat(0xff3355, { emissive: 0x99001a, emissiveIntensity: 0.6, roughness: 0.25 }),
+  lava: new THREE.MeshBasicMaterial({ color: 0xff7a1a }), lavaCore: new THREE.MeshBasicMaterial({ color: 0xffd040 }),
+  water: new THREE.MeshBasicMaterial({ color: 0x4ac8ff }), portal: new THREE.MeshBasicMaterial({ color: 0xb46aff, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false }),
+  scorpion: mat(0x9a5a34), salamander: mat(0xff7a2a, { emissive: 0x802000, emissiveIntensity: 0.4 }), worm: mat(0xc8502a, { emissive: 0x5a1400, emissiveIntensity: 0.5 }), wormBelly: mat(0xffc060),
+  ghost2: new THREE.MeshBasicMaterial({ color: 0xffd08a, transparent: true, opacity: 0.25, depthWrite: false }),
+};
+const WORLD_LOOK = {
+  1: { sky: 0x12405e, water: 0x1a86ee, hemiSky: 0xdff4ff, hemiGround: 0x3a6a3a, sun: 0xfff0d8 },
+  2: { sky: 0x3a1410, water: 0xe8501a, hemiSky: 0xffe0c0, hemiGround: 0x6a3020, sun: 0xffe0b0 },
+};
 const M2 = { bark: mat(0x8a5638), ledge: mat(0x4f9c2c), ledgeBoss: mat(0x5c5f78), soil: mat(0x6e4a34), blade: mat(0xb9e86a) };
 
 /* ================= 海 ================= */
@@ -67,16 +85,17 @@ function hexGeo(rTop, rBot, h) { const g = new THREE.CylinderGeometry(rTop, rBot
 function buildIsland(isl) {
   // 地塊緊密相連成一整片草地：頂面剛好滿版、邊界有淺色小路、外緣是一階深綠色的岸、再外面是六角淺灘
   const g = new THREE.Group(); g.position.set(isl.cx, 0, isl.cz);
-  const boss = isl.id === "boss";
-  const top = new THREE.Mesh(hexGeo(HR, HR, 0.36), mat(islandTheme[isl.id] || 0x86d93c)); top.position.y = -0.18; top.receiveShadow = true; g.add(top);
-  const ledge = new THREE.Mesh(hexGeo(HR * 1.035, HR * 1.035, 0.5), boss ? M2.ledgeBoss : M2.ledge); ledge.position.y = -0.6; g.add(ledge);
+  const w2 = isl.w === 2, hot = w2 && (isl.heat || 0) >= 3;
+  const boss = isl.id === "boss" || isl.id === "crater";
+  const top = new THREE.Mesh(hexGeo(HR, HR, 0.36), mat((w2 ? islandTheme2 : islandTheme)[isl.id] || 0x86d93c)); top.position.y = -0.18; top.receiveShadow = true; g.add(top);
+  const ledge = new THREE.Mesh(hexGeo(HR * 1.035, HR * 1.035, 0.5), w2 ? (hot || boss ? M3.ledgeHot : M3.ledge) : boss ? M2.ledgeBoss : M2.ledge); ledge.position.y = -0.6; g.add(ledge);
   const soil = new THREE.Mesh(hexGeo(HR * 0.98, HR * 0.8, 1.6), M2.soil); soil.position.y = -1.6; g.add(soil);
-  const path = new THREE.Mesh(new THREE.RingGeometry(HR * 0.9, HR, 6, 1), new THREE.MeshBasicMaterial({ color: boss ? 0xc9cbe0 : 0xd9f58a, transparent: true, opacity: 0.38, depthWrite: false }));
+  const path = new THREE.Mesh(new THREE.RingGeometry(HR * 0.9, HR, 6, 1), new THREE.MeshBasicMaterial({ color: w2 ? (hot || boss ? 0xff9a50 : 0xfff0b8) : boss ? 0xc9cbe0 : 0xd9f58a, transparent: true, opacity: w2 && (hot || boss) ? 0.3 : 0.38, depthWrite: false }));
   path.rotation.x = -Math.PI / 2; path.rotation.z = Math.PI / 2; path.position.y = 0.006; g.add(path);
   const R = mulberry(isl.idx * 31 + 5);
   // 尖尖的草叢（三片一簇）
   const blade = new THREE.ConeGeometry(0.07, 0.42, 4);
-  const blades = new THREE.InstancedMesh(blade, boss ? M.rockDark : M2.blade, 14 * 3);
+  const blades = new THREE.InstancedMesh(blade, w2 ? (hot || boss ? BASALT[0] : M3.dry) : boss ? M.rockDark : M2.blade, 14 * 3);
   const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e4 = new THREE.Euler(), v4 = new THREE.Vector3(), s4 = new THREE.Vector3();
   for (let i = 0; i < 14; i++) {
     const a = R() * 6.28, r = 0.6 + R() * (APO - 1.1), x = Math.cos(a) * r, z = Math.sin(a) * r;
@@ -84,11 +103,24 @@ function buildIsland(isl) {
   }
   g.add(blades);
   // 小花
-  if (!boss) for (let i = 0; i < 7; i++) { const f = new THREE.Mesh(new THREE.OctahedronGeometry(0.07, 0), mat([0xffffff, 0xffe45a, 0xff9ad0][i % 3])); const a = R() * 6.28, r = R() * (APO - 0.6); f.position.set(Math.cos(a) * r, 0.07, Math.sin(a) * r); g.add(f); }
-  if (boss) for (let i = 0; i < 6; i++) { const a = i * 1.05 + 0.4, h = 1.2 + R() * 1.2; const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.4, h, 6), PILLAR[i % 3]); sp.position.set(Math.cos(a) * (APO - 0.7), h / 2, Math.sin(a) * (APO - 0.7)); sp.castShadow = true; g.add(sp); }
+  if (!boss && !w2) for (let i = 0; i < 7; i++) { const f = new THREE.Mesh(new THREE.OctahedronGeometry(0.07, 0), mat([0xffffff, 0xffe45a, 0xff9ad0][i % 3])); const a = R() * 6.28, r = R() * (APO - 0.6); f.position.set(Math.cos(a) * r, 0.07, Math.sin(a) * r); g.add(f); }
+  if (boss) for (let i = 0; i < 6; i++) { const a = i * 1.05 + 0.4, h = 1.2 + R() * 1.2; const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.4, h, 6), (w2 ? BASALT : PILLAR)[i % 3]); sp.position.set(Math.cos(a) * (APO - 0.7), h / 2, Math.sin(a) * (APO - 0.7)); sp.castShadow = true; g.add(sp); }
   if (isl.id === "swamp") for (let i = 0; i < 4; i++) { const p = new THREE.Mesh(new THREE.CircleGeometry(0.6 + R() * 0.4, 6), mat(0x4f7a2e)); p.rotation.x = -Math.PI / 2; const a = R() * 6.28, r = 0.6 + R() * (APO - 1.6); p.position.set(Math.cos(a) * r, 0.012, Math.sin(a) * r); g.add(p); }
   // 六角淺灘
-  const foam = new THREE.Mesh(hexGeo(HR * 1.2, HR * 1.2, 0.04), new THREE.MeshBasicMaterial({ color: 0x7fd4ff, transparent: true, opacity: 0.4, depthWrite: false }));
+  // 熔岩裂縫
+  g.userData.lavas = [];
+  for (const l of G.lavas) if (l.island === isl.id) {
+    const lg = new THREE.Group(); lg.position.set(l.x - isl.cx, 0.012, l.z - isl.cz); lg.rotation.y = R() * 6;
+    const a = new THREE.Mesh(new THREE.CircleGeometry(l.r + 0.12, 7), BASALT[1]); a.rotation.x = -Math.PI / 2; lg.add(a);
+    const b = new THREE.Mesh(new THREE.CircleGeometry(l.r, 7), M3.lava.clone()); b.rotation.x = -Math.PI / 2; b.position.y = 0.006; lg.add(b);
+    const c = new THREE.Mesh(new THREE.CircleGeometry(l.r * 0.5, 6), M3.lavaCore); c.rotation.x = -Math.PI / 2; c.position.y = 0.012; lg.add(c);
+    g.add(lg); g.userData.lavas.push(b);
+  }
+  if (isl.id === "crater") { // 半血後才亮起來的外圈熔岩
+    const ring = new THREE.Mesh(new THREE.RingGeometry(APO - BOSS2.ringIn, HR * 0.99, 6, 1), new THREE.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: 0, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.rotation.z = Math.PI / 2; ring.position.y = 0.02; g.add(ring); g.userData.lavaRing = ring;
+  }
+  const foam = new THREE.Mesh(hexGeo(HR * 1.2, HR * 1.2, 0.04), new THREE.MeshBasicMaterial({ color: w2 ? 0xffc040 : 0x7fd4ff, transparent: true, opacity: 0.4, depthWrite: false }));
   foam.position.y = -0.5; g.add(foam);
   g.userData.foam = foam;
   scene.add(g);
@@ -97,7 +129,7 @@ function buildIsland(isl) {
 // 尚未開通的島：海面下的淡淡影子
 const ghosts = new Map();
 function buildGhost(isl) {
-  const m = new THREE.Mesh(hexGeo(HR - 0.25, HR - 0.25, 0.06), M.ghost);
+  const m = new THREE.Mesh(hexGeo(HR - 0.25, HR - 0.25, 0.06), isl.w === 2 ? M3.ghost2 : M.ghost);
   m.position.set(isl.cx, -0.5, isl.cz); scene.add(m); ghosts.set(isl.id, m);
 }
 function mulberry(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -122,16 +154,29 @@ function makeNode(n) {
       c.scale.y = 0.78; c.rotation.set(R() * 3, R() * 3, R() * 3); c.castShadow = true; live.add(c);
     }
     const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.16 * s, 0.22 * s, 0.22, 6), M2.bark); stump.position.y = 0.11; g.add(stump);
+  } else if (n.type === "cactus") {
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.9, 3, 7), M3.cactus); body.position.y = 0.65; body.castShadow = true; live.add(body);
+    for (const [sx, y, len] of [[-1, 0.6, 0.35], [1, 0.85, 0.28]]) {
+      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.2, 3, 6), M3.cactus2); arm.rotation.z = Math.PI / 2; arm.position.set(sx * 0.3, y, 0); live.add(arm);
+      const up = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, len, 3, 6), M3.cactus2); up.position.set(sx * 0.44, y + len / 2 + 0.08, 0); up.castShadow = true; live.add(up);
+    }
+    const fl = new THREE.Mesh(new THREE.OctahedronGeometry(0.09, 0), mat(0xff6ab0)); fl.position.y = 1.36; live.add(fl);
+    const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.16, 7), M3.cactus2); stump.position.y = 0.08; g.add(stump);
+  } else if (n.type === "obsidian") {
+    for (let k = 0; k < 5; k++) { const a = k * 1.3 + R(), d = k ? 0.26 : 0, h = (k ? 0.5 : 0.95) + R() * 0.3; const sh = new THREE.Mesh(new THREE.ConeGeometry(0.2, h, 4), M3.obsidian); sh.position.set(Math.cos(a) * d, h / 2, Math.sin(a) * d); sh.rotation.set((R() - 0.5) * 0.5, R() * 3, (R() - 0.5) * 0.5); sh.castShadow = true; live.add(sh); }
+    const rubble = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.15, 4), M3.obsidian); rubble.position.y = 0.07; g.add(rubble);
   } else {
     // 一叢六角石柱；礦石在柱頂鑲上有顏色的晶體
-    const ore = n.type === "copper" ? M.copper : n.type === "emerald" ? M.emerald : null;
+    const ore = n.type === "copper" ? M.copper : n.type === "emerald" ? M.emerald : n.type === "iron" ? M3.rust : n.type === "ruby" ? M3.ruby : null;
+    const gem = n.type === "emerald" || n.type === "ruby";
+    const PIL = n.type === "sandstone" ? SAND : n.type === "iron" ? IRONROCK : n.type === "ruby" ? BASALT : PILLAR;
     const cols = [[0, 0, 0.3, 0.95], [0.3, 0.12, 0.22, 0.65], [-0.26, 0.18, 0.2, 0.5], [0.05, -0.3, 0.2, 0.42], [-0.2, -0.2, 0.16, 0.75]];
     cols.forEach(([x, z, r, h], k) => {
       h *= 0.85 + R() * 0.3;
-      const c = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.92, r, h, 6), PILLAR[(n.id + k) % 3]); c.position.set(x, h / 2, z); c.rotation.y = R(); c.castShadow = true; live.add(c);
-      if (ore && k < 4) { const cap = new THREE.Mesh(n.type === "emerald" ? new THREE.OctahedronGeometry(r * 0.95, 0) : new THREE.CylinderGeometry(r * 0.7, r * 0.95, 0.14, 6), ore); cap.position.set(x, h + (n.type === "emerald" ? r * 0.5 : 0.07), z); if (n.type === "emerald") cap.scale.y = 1.5; live.add(cap); }
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.92, r, h, 6), PIL[(n.id + k) % 3]); c.position.set(x, h / 2, z); c.rotation.y = R(); c.castShadow = true; live.add(c);
+      if (ore && k < 4) { const cap = new THREE.Mesh(gem ? new THREE.OctahedronGeometry(r * 0.95, 0) : new THREE.CylinderGeometry(r * 0.7, r * 0.95, 0.14, 6), ore); cap.position.set(x, h + (gem ? r * 0.5 : 0.07), z); if (gem) cap.scale.y = 1.5; live.add(cap); }
     });
-    const rubble = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.12, 6), PILLAR[1]); rubble.position.y = 0.06; g.add(rubble);
+    const rubble = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.12, 6), PIL[1]); rubble.position.y = 0.06; g.add(rubble);
   }
   live.rotation.y = R() * 6.28;
   scene.add(g);
@@ -176,30 +221,49 @@ function buildPlot(pl) {
     const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.85, 0.08, 6), M.wood); pad.position.y = 0.04; g.add(pad);
     for (const [x, z] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.6, 0.08), M.woodDark); p.position.set(x, 0.3, z); g.add(p); }
     const lab = labelSprite(); lab.position.y = 1.7; g.add(lab); g.userData.label = lab;
-  } else if (pl.id === "warehouse") {
+  } else if (pl.type === "warehouse") {
     const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.1, 1.4), M.wood); body.position.y = 0.55; body.castShadow = true; g.add(body);
     const roof = new THREE.Mesh(new THREE.ConeGeometry(1.45, 0.8, 4), M.roof); roof.position.y = 1.5; roof.rotation.y = Math.PI / 4; roof.scale.z = 0.8; roof.castShadow = true; g.add(roof);
     const door = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.75, 0.05), M.woodDark); door.position.set(0, 0.38, 0.72); g.add(door);
     for (const [x, z] of [[1.15, 0.4], [1.2, -0.2], [1.05, 0.95]]) { const cr = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), M.wood); cr.position.set(x, 0.2, z); cr.castShadow = true; g.add(cr); }
     const ring = new THREE.Mesh(new THREE.RingGeometry(pl.r - 0.15, pl.r, 40), new THREE.MeshBasicMaterial({ color: 0xffc940, transparent: true, opacity: 0.5 }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02; g.add(ring); g.userData.ring = ring;
-  } else if (pl.id === "workbench") {
+  } else if (pl.type === "workbench") {
     const top = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 0.7), M.wood); top.position.y = 0.7; top.castShadow = true; g.add(top);
     for (const [x, z] of [[-0.5, -0.27], [0.5, -0.27], [-0.5, 0.27], [0.5, 0.27]]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.65, 0.1), M.woodDark); l.position.set(x, 0.33, z); g.add(l); }
     const anvil = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.22, 0.25), M.metal); anvil.position.set(-0.2, 0.87, 0); g.add(anvil);
     const ham = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.08), M.metal); ham.position.set(0.3, 0.8, 0.1); ham.rotation.y = 0.6; g.add(ham);
-  } else if (pl.id === "hut") {
+  } else if (pl.type === "hut") {
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.8, 0.9, 8), M.white); body.position.y = 0.45; body.castShadow = true; g.add(body);
     const roof = new THREE.Mesh(new THREE.ConeGeometry(0.95, 0.7, 8), mat(0x40c8c0)); roof.position.y = 1.25; roof.castShadow = true; g.add(roof);
     const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5), M.metal); ant.position.y = 1.8; g.add(ant);
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.07), new THREE.MeshBasicMaterial({ color: 0xff5a4a })); bulb.position.y = 2.06; g.add(bulb);
-  } else if (pl.id === "factory") {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.2, 1.5), mat(0xc9b28a)); body.position.y = 0.6; body.castShadow = true; g.add(body);
+  } else if (pl.type === "well") {
+    const wall = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.6, 0.5, 10, 1, true), SAND[1]); wall.position.y = 0.25; wall.material.side = THREE.DoubleSide; wall.castShadow = true; g.add(wall);
+    const wat = new THREE.Mesh(new THREE.CircleGeometry(0.52, 10), M3.water); wat.rotation.x = -Math.PI / 2; wat.position.y = 0.4; g.add(wat);
+    for (const x of [-0.5, 0.5]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.2, 0.08), M.woodDark); post.position.set(x, 0.6, 0); g.add(post); }
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.4, 4), M.roof); roof.position.y = 1.4; roof.rotation.y = Math.PI / 4; roof.castShadow = true; g.add(roof);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(HEAT.wellR - 0.1, HEAT.wellR, 48), new THREE.MeshBasicMaterial({ color: 0x4ac8ff, transparent: true, opacity: 0.5, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02; g.add(ring);
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(HEAT.wellR, 48), new THREE.MeshBasicMaterial({ color: 0x4ac8ff, transparent: true, opacity: 0.1, depthWrite: false }));
+    disc.rotation.x = -Math.PI / 2; disc.position.y = 0.015; g.add(disc); g.userData.cool = disc;
+  } else if (pl.type === "portal") {
+    for (const x of [-0.62, 0.62]) { const pil = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 1.7, 6), PILLAR[0]); pil.position.set(x, 0.85, 0); pil.castShadow = true; g.add(pil); }
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.12, 6, 12, Math.PI), PILLAR[1]); arch.position.y = 1.7; g.add(arch);
+    const swirl = new THREE.Mesh(new THREE.CircleGeometry(0.6, 20), M3.portal.clone()); swirl.position.y = 1.15; swirl.scale.y = 1.6; g.add(swirl);
+    const pad = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.7, 32), new THREE.MeshBasicMaterial({ color: 0xb46aff, transparent: true, opacity: 0.6, depthWrite: false })); pad.rotation.x = -Math.PI / 2; pad.position.y = 0.02; g.add(pad);
+    const lab = labelSprite(); lab.position.y = 2.6; g.add(lab); drawLabel(lab, pl.w === 1 ? "往 熔岩沙漠" : "往 森林群島", [{ text: "站定 1 秒傳送", ok: true }]);
+    g.userData.swirl = swirl; g.userData.portalLabel = lab;
+  } else if (pl.type === "factory" || pl.type === "furnace") {
+    const fur = pl.type === "furnace";
+    const body = new THREE.Mesh(fur ? new THREE.BoxGeometry(1.5, 1.1, 1.2) : new THREE.BoxGeometry(2.0, 1.2, 1.5), mat(fur ? 0x5a4a48 : 0xc9b28a));
+    if (fur) { const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.45), M3.lava); glow.position.set(0.2, 0.4, 0.61); g.add(glow); body.scale.set(1, 1, 1); } body.position.y = 0.6; body.castShadow = true; g.add(body);
     const roof = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.15, 1.6), M.roof); roof.position.y = 1.27; g.add(roof);
     const chim = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.1, 8), M.rock); chim.position.set(0.6, 1.7, -0.3); chim.castShadow = true; g.add(chim);
     const gear = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.09, 6, 10), M.metal); gear.position.set(-0.4, 0.7, 0.78); g.add(gear);
     g.userData.gear = gear; g.userData.chim = chim;
   }
+  g.userData.type = pl.type;
   scene.add(g);
   plotMeshes.set(pl.id, { g });
 }
@@ -243,7 +307,7 @@ function makePerson() {
   return { g, legs, arms, tools, stack, body, head };
 }
 const cubeGeo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
-const resMat = Object.fromEntries(RES_ORDER.map((k) => [k, mat(RES[k].color, k === "emerald" || k === "core" ? { emissive: RES[k].color, emissiveIntensity: 0.4 } : {})]));
+const resMat = Object.fromEntries(RES_ORDER.map((k) => [k, mat(RES[k].color, ["emerald", "core", "ruby", "magma"].includes(k) ? { emissive: RES[k].color, emissiveIntensity: 0.4 } : {})]));
 function setStack(stack, counts, max = 24) {
   const want = [];
   for (const k of RES_ORDER) for (let i = 0; i < counts[k]; i++) want.push(k);
@@ -273,9 +337,40 @@ function makeHelper() {
 const slimeMeshes = new Map();
 function makeSlime(s) {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.36, 14, 10), M.slime.clone()); body.scale.y = 0.75; body.position.y = 0.27; body.castShadow = true; g.add(body);
-  for (const x of [-0.12, 0.12]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), M.dark); e.position.set(x, 0.38, 0.28); g.add(e); }
-  scene.add(g); slimeMeshes.set(s, { g, body });
+  let body, base = 0x7cff6b, tail = null;
+  if (s.kind === "scorpion") {
+    base = 0x9a5a34;
+    body = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), M3.scorpion.clone()); body.scale.set(1, 0.55, 1.35); body.position.y = 0.2; body.castShadow = true; g.add(body);
+    for (const x of [-1, 1]) { const claw = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.3), M3.scorpion); claw.position.set(x * 0.3, 0.18, 0.42); claw.rotation.y = -x * 0.5; g.add(claw); }
+    tail = new THREE.Group(); tail.position.set(0, 0.25, -0.35);
+    for (let k = 0; k < 4; k++) { const seg = new THREE.Mesh(new THREE.SphereGeometry(0.1 - k * 0.012, 6, 6), M3.scorpion); seg.position.set(0, k * 0.15, -0.1 + Math.sin(k * 0.7) * 0.12); tail.add(seg); }
+    const sting = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.2, 5), mat(0x2a1a14)); sting.position.set(0, 0.62, 0.16); sting.rotation.x = 1.9; tail.add(sting); g.add(tail);
+  } else if (s.kind === "salamander") {
+    base = 0xff7a2a;
+    body = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.55, 3, 8), M3.salamander.clone()); body.rotation.x = Math.PI / 2; body.position.y = 0.24; body.castShadow = true; g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), M3.salamander); head.position.set(0, 0.3, 0.5); head.scale.z = 1.2; g.add(head);
+    tail = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.7, 6), M3.salamander); tail.rotation.x = -Math.PI / 2; tail.position.set(0, 0.22, -0.75); g.add(tail);
+    for (const x of [-0.08, 0.08]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), M.dark); e.position.set(x, 0.4, 0.64); g.add(e); }
+    for (let k = 0; k < 3; k++) { const fin = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 4), M3.lavaCore); fin.position.set(0, 0.5, 0.25 - k * 0.3); g.add(fin); }
+  } else {
+    body = new THREE.Mesh(new THREE.SphereGeometry(0.36, 14, 10), M.slime.clone()); body.scale.y = 0.75; body.position.y = 0.27; body.castShadow = true; g.add(body);
+    for (const x of [-0.12, 0.12]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), M.dark); e.position.set(x, 0.38, 0.28); g.add(e); }
+  }
+  scene.add(g); slimeMeshes.set(s, { g, body, base, tail });
+}
+
+let wormMesh = null;
+function makeWorm() {
+  const g = new THREE.Group(), segs = [];
+  for (let k = 0; k < 6; k++) { const r = 0.62 - k * 0.04; const sg = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), k % 2 ? M3.wormBelly : M3.worm.clone()); sg.position.y = 0.3 + k * 0.5; sg.castShadow = true; g.add(sg); segs.push(sg); }
+  const head = new THREE.Group(); head.position.y = 3.2;
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), M3.worm); head.add(skull);
+  for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.78; const fang = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.5, 5), M.white); fang.position.set(Math.cos(a) * 0.28, Math.sin(a) * 0.28, 0.42); fang.rotation.x = Math.PI / 2; head.add(fang); }
+  for (const x of [-0.25, 0.25]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), M3.lavaCore); e.position.set(x, 0.3, 0.35); head.add(e); }
+  g.add(head);
+  const hole = new THREE.Mesh(new THREE.CircleGeometry(0.85, 9), BASALT[1]); hole.rotation.x = -Math.PI / 2; hole.position.y = 0.015;
+  scene.add(g); scene.add(hole);
+  wormMesh = { g, segs, head, hole, y: 0 };
 }
 
 let bossMesh = null;
@@ -380,6 +475,7 @@ function renderRes() {
     const n = have(G, k);
     if (!resEls[k]) { if (!n && k !== "wood" && k !== "stone") continue; const s = document.createElement("span"); box.appendChild(s); resEls[k] = { el: s, n: -1 }; }
     const r = resEls[k];
+    r.el.style.display = RES[k].w === G.world && (n || k === "wood" || k === "stone") ? "" : "none"; // 只顯示目前世界的資源
     if (r.n !== n) { if (r.n >= 0 && n > r.n) { r.el.classList.add("bump"); setTimeout(() => r.el.classList.remove("bump"), 150); } r.n = n; r.el.textContent = `${RES[k].icon}${n}`; }
   }
   const hp = Math.max(0, G.player.hp);
@@ -387,27 +483,35 @@ function renderRes() {
   const bt = bagTotal(G), bc = bagCap(G);
   $("bagFill").style.transform = `scaleX(${bt / bc})`; $("bagTxt").textContent = `🎒 ${bt}/${bc}`;
   $("bagFill").parentElement.classList.toggle("full", bt >= bc);
-  const B = G.boss;
-  $("bossBar").hidden = !(B && B.alive && B.active);
-  if (B) $("bossFill").style.transform = `scaleX(${Math.max(0, B.hp) / BOSS.hp})`;
+  const B = G.boss, B2 = G.boss2;
+  const show1 = B && B.alive && B.active, show2 = B2 && B2.alive && B2.active;
+  $("bossBar").hidden = !(show1 || show2);
+  if (show1) { $("bossName").textContent = "石頭守衛者"; $("bossFill").style.transform = `scaleX(${Math.max(0, B.hp) / BOSS.hp})`; }
+  if (show2) { $("bossName").textContent = B2.enraged ? "熔岩巨蟲（暴怒）" : "熔岩巨蟲"; $("bossFill").style.transform = `scaleX(${Math.max(0, B2.hp) / BOSS2.hp})`; }
+  const heat = G.player.heat || 0, hb = $("heatBar");
+  hb.hidden = G.world !== 2;
+  $("heatFill").style.transform = `scaleX(${heat / HEAT.max})`;
+  $("heatTxt").textContent = G.player.cooling ? "💧 降溫中" : heat >= HEAT.max ? "🥵 過熱！" : `🌡 ${Math.round(heat)}`;
+  hb.classList.toggle("full", heat >= HEAT.max * 0.8 && !G.player.cooling); hb.classList.toggle("cool", !!G.player.cooling);
 }
 function costHTML(cost) { return Object.entries(cost).map(([k, n]) => `<span class="${have(G, k) >= n ? "" : "no"}">${RES[k].icon}${n}</span>`).join(" "); }
 let panelFor = null, panelSig = "";
 function renderPanel() {
   const pl = nearPlot(G);
-  const id = pl && ["workbench", "factory", "hut"].includes(pl.id) ? pl.id : null;
+  const id = pl && ["workbench", "factory", "furnace", "hut"].includes(pl.type) ? pl.type : null;
   const panel = $("panel");
   if (!id) { panel.hidden = true; panelFor = null; return; }
-  let html = "", title = PLOTS[id].name;
-  const keys = id === "workbench" ? ["axe", "pick", "sword", "bag"] : id === "hut" ? ["hut"] : [];
+  let html = "", title = PLOTS[pl.id].name;
+  const keys = id === "workbench" ? ["axe", "pick", "sword", "bag", ...(G.plots.some((p) => p.type === "portal" && p.w === 1 && p.built) ? ["boots"] : [])] : id === "hut" ? ["hut"] : [];
   for (const k of keys) {
     const U = UPGRADES[k], lv = G.levels[k], cost = U.costs[lv - 1];
-    const desc = k === "bag" ? `容量 ${U.power[lv - 1]}${cost ? " → " + U.power[lv] : ""}` : k === "hut" ? `小幫手 ${G.helpers.length} 位` : `Lv${lv}${cost ? " → Lv" + (lv + 1) : "（最高）"}`;
+    const desc = k === "bag" ? `容量 ${U.power[lv - 1]}${cost ? " → " + U.power[lv] : ""}` : k === "boots" ? `升溫速度 ${Math.round(U.power[lv - 1] * 100)}%${cost ? " → " + Math.round(U.power[lv] * 100) + "%" : ""}` : k === "hut" ? `小幫手 ${G.helpers.length} 位` : `Lv${lv}${cost ? " → Lv" + (lv + 1) : "（最高）"}`;
     html += `<div class="item"><div class="ic">${U.icon}</div><div><b>${U.name}</b><small>${desc}</small><small>${cost ? costHTML(cost) : "已滿級"}</small></div>${cost ? `<button class="mini" data-up="${k}" ${canAfford(G, cost) ? "" : "disabled"}>升級</button>` : ""}</div>`;
   }
   if (id === "hut") html += `<p class="note">小幫手會在你背包快滿的時候走到你身邊，把資源搬回倉庫。走路速度跟你一樣，離家越遠來回越久。</p>`;
-  if (id === "factory") {
+  if (id === "factory" || id === "furnace") {
     for (const R of RECIPES) {
+      if (R.at !== id) continue;
       const [fk, fn] = Object.entries(R.from)[0], [tk] = Object.keys(R.to);
       const q = G.factory.queue.filter((x) => x === R.id).length + (G.factory.cur?.id === R.id ? 1 : 0);
       html += `<div class="item"><div class="ic">${RES[tk].icon}</div><div><b>${RES[tk].name}</b><small>${RES[fk].icon}${fn} → ${RES[tk].icon}1 · 排隊 ${q}</small>${G.factory.cur?.id === R.id ? `<div class="prog"><i style="transform:scaleX(${G.factory.t / R.time})"></i></div>` : ""}</div><div><button class="mini" data-q="${R.id}" data-n="1">+1</button><button class="mini" data-q="${R.id}" data-n="10">+10</button></div></div>`;
@@ -426,7 +530,19 @@ $("panelBody").addEventListener("click", (e) => {
 });
 function tipText() {
   const P = G.player, wb = G.plots.find((p) => p.id === "workbench");
-  if (G.bossDefeated) return "🎉 第一世界完成！可以繼續採集、升級";
+  const built = (id) => G.plots.find((p) => p.id === id).built;
+  if (G.world === 2) {
+    if (bagTotal(G) >= bagCap(G)) return "🎒 背包滿了！回綠洲的倉庫（黃色圈）卸貨";
+    if (P.heat >= 70 && !P.cooling) return "🥵 快過熱了！到水井的藍色圈裡降溫";
+    if (G.boss2Defeated) return "🎉 第二世界完成！獲得 🔥 熔核";
+    if (!G.byId.cactus.unlocked) return "🌵 砍仙人掌拿纖維，站上建造牌開通新地塊";
+    if (G.byId.forge.unlocked && !built("furnace")) return "🔥 在鍛造台地蓋「熔爐」，煉鐵錠和玻璃";
+    if (G.byId.crater.unlocked) return "🪱 巨蟲冒出地面時才打得到；黃圈是牠要衝出來的位置";
+    if (G.byId.rift.unlocked) return "🌡 紅色地塊會讓你越來越熱，記得蓋水井、升級隔熱靴";
+    return "🪧 繼續開通地塊，⚠ 小心蠍子和熔岩裂縫";
+  }
+  if (G.bossDefeated && !built("portal")) return "🌀 到魔王之岩蓋好傳送門，前往第二世界「熔岩沙漠」";
+  if (G.bossDefeated) return "🌀 站上魔王之岩的傳送門，前往「熔岩沙漠」";
   if (bagTotal(G) >= bagCap(G)) return "🎒 背包滿了！回到主島的倉庫（黃色圈）卸貨";
   if (!wb.built) return "🌲 靠近樹木和石頭自動採集，然後站上地基蓋「工匠台」";
   if (!G.byId.pine.unlocked) return "🪧 站上島邊的建造牌投入木頭，開通新的小島";
@@ -441,9 +557,20 @@ function tipText() {
 /* ================= 建立場景 ================= */
 for (const isl of G.islands) { if (isl.unlocked) buildIsland(isl); else buildGhost(isl); }
 for (const n of G.nodes) makeNode(n);
-for (const pl of G.plots) if (G.byId[pl.island].unlocked) buildPlot(pl);
+for (const pl of G.plots) if (plotAvailable(G, pl)) buildPlot(pl);
 for (const s of G.slimes) makeSlime(s);
 if (G.boss) makeBoss();
+if (G.boss2) makeWorm();
+let lookWorld = 0;
+function applyWorld() {
+  if (lookWorld === G.world) return;
+  lookWorld = G.world;
+  const L = WORLD_LOOK[G.world];
+  scene.background.setHex(L.sky); scene.fog.color.setHex(L.sky); water.material.color.setHex(L.water);
+  water.material.emissive.setHex(G.world === 2 ? 0x802000 : 0x000000);
+  hemi.color.setHex(L.hemiSky); hemi.groundColor.setHex(L.hemiGround); sun.color.setHex(L.sun);
+}
+applyWorld();
 rebuildSignMeshes();
 
 /* ================= 事件 → 特效 ================= */
@@ -453,8 +580,8 @@ function handleEvents() {
       case "fly": spawnFlyer(e); if (e.to === "player" && performance.now() - lastPick > 60) { sfx(880 + Math.random() * 200, 0.06, "sine", 0.06); lastPick = performance.now(); } break;
       case "swing": hero.swing = 0.3; break;
       case "hit":
-        if (e.what === "tree" || e.what === "bigtree") { noise(0.08, 0.25, 600); burst(e.x, e.z, 0x9b6a3c, 5, 0.9); }
-        else if (e.what === "slime" || e.what === "boss") { noise(0.06, 0.2, 1500); popText(e.x, e.z, `-${e.dmg}`, "#ffd040"); burst(e.x, e.z, e.what === "slime" ? 0x7cff6b : 0x7b8088, 5, 0.8); }
+        if (e.what === "tree" || e.what === "bigtree" || e.what === "cactus") { noise(0.08, 0.25, 600); burst(e.x, e.z, e.what === "cactus" ? 0x5fa84a : 0x9b6a3c, 5, 0.9); }
+        else if (e.dmg) { noise(0.06, 0.2, 1500); popText(e.x, e.z, `-${e.dmg}`, "#ffd040"); burst(e.x, e.z, { slime: 0x7cff6b, scorpion: 0x9a5a34, salamander: 0xff7a2a, boss2: 0xc8502a }[e.what] || 0x7b8088, 5, 0.8); }
         else { sfx(1400 + Math.random() * 300, 0.05, "triangle", 0.08); noise(0.05, 0.15, 2500); burst(e.x, e.z, 0x9aa0a8, 5, 0.5); }
         break;
       case "break": sfx(300, 0.2, "triangle", 0.1, 150); break;
@@ -465,8 +592,9 @@ function handleEvents() {
         buildIsland(e.island); islandMeshes.get(e.island.id).rise = 0.001;
         for (const n of G.nodes) if (!nodeMeshes.has(n)) makeNode(n);
         for (const s of G.slimes) if (!slimeMeshes.has(s)) makeSlime(s);
-        for (const pl of G.plots) if (pl.island === e.island.id) buildPlot(pl);
+        for (const pl of G.plots) if (pl.island === e.island.id && plotAvailable(G, pl)) buildPlot(pl);
         if (G.boss && !bossMesh) makeBoss();
+        if (G.boss2 && !wormMesh) makeWorm();
         rebuildSignMeshes();
         toast(`🏝️ 開通了「${e.island.name}」！`); shake = 0.5;
         [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => sfx(f, 0.25, "triangle", 0.14), i * 90)); noise(0.6, 0.2, 500);
@@ -476,13 +604,24 @@ function handleEvents() {
       case "upgrade": toast(`⬆ ${UPGRADES[e.key].name} 升到 Lv${e.level}`); break;
       case "craft": sfx(1200, 0.12, "sine", 0.06); break;
       case "hurt": sfx(160, 0.15, "square", 0.1, 90); shake = Math.max(shake, 0.25); try { navigator.vibrate?.(30); } catch {} break;
+      case "teleport": applyWorld(); camTarget.set(G.player.x, 0, G.player.z); toast(e.world === 2 ? "🌋 來到「熔岩沙漠」！倉庫和森林是共用的" : "🌲 回到「森林群島」"); [330, 494, 740, 988].forEach((f, i) => setTimeout(() => sfx(f, 0.3, "sine", 0.12), i * 70)); burst(G.player.x, G.player.z, 0xb46aff, 20, 1); save(); break;
+      case "burn": sfx(900, 0.12, "sawtooth", 0.05, 300); burst(e.x, e.z, 0xff7a1a, 3, 0.4); break;
+      case "spit": sfx(300, 0.2, "sawtooth", 0.06, 700); break;
+      case "burrow": noise(0.5, 0.3, 200); shake = Math.max(shake, 0.3); burst(e.x, e.z, 0x3a3442, 14, 0.3); break;
+      case "emerge": noise(0.5, 0.4, 250); shake = Math.max(shake, 0.6); burst(e.x, e.z, 0xff7a1a, 18, 0.4); break;
+      case "bossWake2": toast("🪱 熔岩巨蟲出現了！"); sfx(60, 1, "sawtooth", 0.18, 40); break;
+      case "boss2Dead":
+        shake = 1; burst(e.x, e.z, 0xff7a1a, 40, 1.5); [392, 523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => sfx(f, 0.4, "triangle", 0.16), i * 120));
+        save(); setTimeout(() => { $("clearTag").textContent = "WORLD 2 CLEAR"; $("clearTitle").textContent = "第二世界完成！"; $("clearTxt").innerHTML = `獲得 🔥 熔核！<br>遊玩時間 ${Math.floor(played / 60)} 分 ${Math.floor(played % 60)} 秒`; $("clear").hidden = false; }, 1600);
+        break;
       case "death": toast("💫 你被打倒了，回到主島休息（不會掉東西）"); sfx(400, 0.6, "sine", 0.15, 80); break;
-      case "slimeDead": sfx(500, 0.15, "sine", 0.12, 1200); burst(e.x, e.z, 0x7cff6b, 12, 0.4); break;
+      case "slimeDead": sfx(500, 0.15, "sine", 0.12, 1200); burst(e.x, e.z, { scorpion: 0x9a5a34, salamander: 0xff7a2a }[e.kind] || 0x7cff6b, 12, 0.4); break;
       case "bossWake": toast("🗿 石頭守衛者醒了！"); sfx(80, 0.8, "sawtooth", 0.15, 50); break;
       case "boom": noise(0.35, 0.35, 300); shake = Math.max(shake, 0.4); burst(e.x, e.z, 0x8a8f96, 10, 0.3); break;
       case "bossDead":
         shake = 1; burst(e.x, e.z, 0xfcee0a, 30, 1.5); [392, 523, 659, 784, 1047].forEach((f, i) => setTimeout(() => sfx(f, 0.4, "triangle", 0.16), i * 120));
-        save(); setTimeout(() => { $("clearTxt").innerHTML = `獲得 ⭐ 守衛者之核！<br>遊玩時間 ${Math.floor(played / 60)} 分 ${Math.floor(played % 60)} 秒`; $("clear").hidden = false; }, 1600);
+        { const pp = G.plots.find((p) => p.id === "portal"); if (pp) buildPlot(pp); }
+        save(); setTimeout(() => { $("clearTag").textContent = "WORLD 1 CLEAR"; $("clearTitle").textContent = "第一世界完成！"; $("clearTxt").innerHTML = `獲得 ⭐ 守衛者之核！<br>用它在這座島上蓋傳送門，前往第二世界。<br>遊玩時間 ${Math.floor(played / 60)} 分 ${Math.floor(played % 60)} 秒`; $("clear").hidden = false; }, 1600);
         break;
     }
   }
@@ -539,6 +678,8 @@ function frame(now) {
   for (const [id, im] of islandMeshes) {
     if (im.rise > 0 && im.rise < 1) { im.rise = Math.min(1, im.rise + dt / 1.6); const e = 1 - Math.pow(1 - im.rise, 3); im.g.position.y = -3.5 * (1 - e); }
     im.g.userData.foam.material.opacity = 0.35 + Math.sin(t * 2 + im.g.position.x) * 0.12;
+    for (const lm of im.g.userData.lavas) lm.material.color.setHSL(0.06 + Math.sin(t * 3 + lm.id) * 0.02, 1, 0.52 + Math.sin(t * 4 + lm.id) * 0.06);
+    if (im.g.userData.lavaRing) im.g.userData.lavaRing.material.opacity = G.boss2?.alive && G.boss2.enraged ? 0.55 + Math.sin(t * 6) * 0.15 : 0;
   }
   // 節點
   for (const [n, nm] of nodeMeshes) {
@@ -552,9 +693,13 @@ function frame(now) {
     void target;
   }
   // 建築動畫
-  const fac = plotMeshes.get("factory");
-  if (fac?.g.userData.gear) { fac.g.userData.gear.rotation.z += dt * (G.factory.cur ? 4 : 0.3); if (G.factory.cur && Math.random() < dt * 6) { const c = fac.g.userData.chim; burst(c.parent.position.x + 0.6, c.parent.position.z - 0.3, 0xdddddd, 1, 2.3); } }
-  const wh = plotMeshes.get("warehouse"); if (wh?.g.userData.ring) wh.g.userData.ring.material.opacity = bagTotal(G) ? 0.45 + Math.sin(t * 5) * 0.25 : 0.25;
+  for (const [, pm] of plotMeshes) {
+    const u = pm.g.userData;
+    if (u.gear) { const on = G.factory.cur?.at === u.type; u.gear.rotation.z += dt * (on ? 4 : 0.3); if (on && Math.random() < dt * 6) burst(pm.g.position.x + 0.6, pm.g.position.z - 0.3, u.type === "furnace" ? 0xff9a40 : 0xdddddd, 1, 2.3); }
+    if (u.ring) u.ring.material.opacity = bagTotal(G) ? 0.45 + Math.sin(t * 5) * 0.25 : 0.25;
+    if (u.cool) u.cool.material.opacity = 0.1 + Math.sin(t * 3) * 0.04 + (G.player.cooling ? 0.1 : 0);
+    if (u.swirl) { u.swirl.rotation.z += dt * 2; u.swirl.material.opacity = 0.6 + Math.sin(t * 4) * 0.2 + (G.player.portalT ? 0.2 : 0); u.portalLabel.visible = Math.hypot(pm.g.position.x - P.x, pm.g.position.z - P.z) < 3; }
+  }
   // 標籤只在主角附近顯示，避免畫面太擠
   const near = (x, z, r = 3.0) => Math.hypot(x - P.x, z - P.z) < r;
   for (const pl of G.plots) { const pm = plotMeshes.get(pl.id); if (pm?.g.userData.label) { pm.g.userData.label.visible = near(pl.x, pl.z); drawLabel(pm.g.userData.label, PLOTS[pl.id].name, costLines(pl.cost, pl.paid)); } }
@@ -574,7 +719,8 @@ function frame(now) {
     sm.g.position.set(s.x, hop * 0.25, s.z);
     sm.body.scale.set(1 + (1 - hop) * 0.15, 0.75 - (1 - hop) * 0.15, 1 + (1 - hop) * 0.15);
     sm.g.rotation.y = Math.atan2(P.x - s.x, P.z - s.z);
-    sm.body.material.color.setHex(s.flash > 0 ? 0xffffff : s.angry ? 0xff8a6b : 0x7cff6b);
+    if (s.kind && s.kind !== "slime") { sm.g.position.y = 0; sm.body.scale.x = 1; if (s.kind === "scorpion") { sm.body.scale.set(1, 0.55, 1.35); sm.tail.rotation.x = Math.sin(t * 6 + s.id) * 0.25; sm.g.position.x += Math.sin(t * 18 + s.id) * 0.015; } else { sm.body.scale.set(1, 1, 1); sm.tail.rotation.z = Math.sin(t * 5 + s.id) * 0.4; } }
+    sm.body.material.color.setHex(s.flash > 0 ? 0xffffff : s.angry && sm.base === 0x7cff6b ? 0xff8a6b : sm.base);
   }
   // 魔王
   const B = G.boss;
@@ -586,13 +732,15 @@ function frame(now) {
     bossMesh.arms.forEach((a) => (a.rotation.x = -lift * 2.2));
     bossMesh.body.scale.y = 1 + Math.sin(t * 2) * 0.03;
     bossMesh.body.material.color.setHex(B.flash > 0 ? 0xffffff : 0x6f766a);
+  }
+  {
     const seen = new Set();
-    for (const w of B.warns) {
+    for (const w of [...(G.boss?.warns || []), ...G.warns]) {
       seen.add(w);
       let wm = warnMeshes.get(w);
       if (!wm) {
         const g = new THREE.Group();
-        const ring = new THREE.Mesh(new THREE.RingGeometry(w.r - 0.08, w.r, 40), new THREE.MeshBasicMaterial({ color: 0xff2a2a, transparent: true, opacity: 0.9, depthWrite: false }));
+        const ring = new THREE.Mesh(new THREE.RingGeometry(w.r - 0.08, w.r, 40), new THREE.MeshBasicMaterial({ color: w.kind === "emerge" ? 0xffd040 : 0xff2a2a, transparent: true, opacity: 0.9, depthWrite: false }));
         const fill = new THREE.Mesh(new THREE.CircleGeometry(w.r, 40), new THREE.MeshBasicMaterial({ color: 0xff3a2a, transparent: true, opacity: 0.35, depthWrite: false }));
         ring.rotation.x = fill.rotation.x = -Math.PI / 2; ring.position.y = 0.04; fill.position.y = 0.03;
         g.add(ring, fill); g.position.set(w.x, 0, w.z); scene.add(g);
@@ -603,6 +751,18 @@ function frame(now) {
       wm.g.visible = w.t > 0;
     }
     for (const [w, wm] of warnMeshes) if (!seen.has(w)) { scene.remove(wm.g); warnMeshes.delete(w); }
+  }
+
+  // 熔岩巨蟲：冒出 / 鑽地
+  const W = G.boss2;
+  if (wormMesh && W) {
+    const up = W.alive && W.state === "up";
+    wormMesh.y += ((up ? 0 : -4.2) - wormMesh.y) * Math.min(1, dt * (up ? 9 : 7));
+    wormMesh.g.visible = W.alive && wormMesh.y > -4; wormMesh.hole.visible = W.alive && G.byId[W.island].unlocked;
+    wormMesh.g.position.set(W.x, wormMesh.y, W.z); wormMesh.hole.position.x = W.x; wormMesh.hole.position.z = W.z;
+    if (W.facing !== undefined) wormMesh.g.rotation.y = W.facing;
+    wormMesh.segs.forEach((sg, k) => { sg.position.x = Math.sin(t * 2.5 + k * 0.8) * 0.12 * k * 0.4; if (!(k % 2)) sg.material.color.setHex(W.flash > 0 ? 0xffffff : W.enraged ? 0xff3a1a : 0xc8502a); });
+    wormMesh.head.position.x = Math.sin(t * 2.5 + 4.8) * 0.3; wormMesh.head.rotation.x = 0.5 + Math.sin(t * 3) * 0.15;
   }
 
   // 飛行資源
@@ -621,12 +781,15 @@ function frame(now) {
   for (let i = pops.length - 1; i >= 0; i--) { const p = pops[i]; p.t += dt; p.sp.position.y += dt * 1.2; p.sp.material.opacity = 1 - p.t; if (p.t > 1) { scene.remove(p.sp); pops.splice(i, 1); } }
 
   // 鏡頭：固定角度跟著主角
+  applyWorld();
+  if (Math.hypot(camTarget.x - P.x, camTarget.z - P.z) > 15) camTarget.set(P.x, 0, P.z); // 傳送後直接跳過去
   camTarget.lerp(tmp.set(P.x, 0, P.z), 1 - Math.exp(-dt * 5));
   shake = Math.max(0, shake - dt * 1.5);
   camera.position.copy(camTarget).add(camOff);
   camera.position.x += (Math.random() - 0.5) * shake * 0.3; camera.position.y += (Math.random() - 0.5) * shake * 0.3;
   camera.lookAt(camTarget.x, 0.5, camTarget.z);
   sun.position.set(camTarget.x + 8, 18, camTarget.z + 6); sun.target.position.copy(camTarget);
+  water.position.x = Math.round(camTarget.x / 2) * 2; water.position.z = Math.round(camTarget.z / 2) * 2; // 海面跟著鏡頭（世界二在很遠的座標）
 
   uiT += dt; if (uiT > 0.1) { uiT = 0; renderRes(); renderPanel(); $("tip").textContent = tipText(); }
   renderer.render(scene, camera);
