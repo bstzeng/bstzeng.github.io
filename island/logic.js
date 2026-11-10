@@ -85,8 +85,8 @@ function populate(G, isl) {
   for (const n of NORMALS) avoid.push([isl.cx + n[0] * (APO - 0.95), isl.cz + n[1] * (APO - 0.95), 1.05]);
   avoid.push([isl.cx, isl.cz, isl.plots ? 0.6 : 1.0]);
   if (isl.id === "ruins") {
-    for (const [x, z] of RUINS.plates) { avoid.push([isl.cx + x, isl.cz + z, 0.75]); G.plates.push({ x: isl.cx + x, z: isl.cz + z }); }
-    for (const [x, z] of RUINS.blocks) { avoid.push([isl.cx + x, isl.cz + z, 0.6]); G.blocks.push({ x: isl.cx + x, z: isl.cz + z, r: RUINS.blockR }); }
+    for (const [x, z] of RUINS.plates) { avoid.push([isl.cx + x, isl.cz + z, 0.9]); G.plates.push({ x: isl.cx + x, z: isl.cz + z }); }
+    for (const [x, z] of RUINS.blocks) { avoid.push([isl.cx + x, isl.cz + z, 1.3]); G.blocks.push({ x: isl.cx + x, z: isl.cz + z, r: RUINS.blockR }); }
     avoid.push([isl.cx + RUINS.chest[0], isl.cz + RUINS.chest[1], 0.8]);
     if (G.ruinsSolved) G.blocks.forEach((b, i) => { b.x = G.plates[i].x; b.z = G.plates[i].z; b.locked = true; G.plates[i].on = true; });
   }

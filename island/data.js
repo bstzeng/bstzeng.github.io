@@ -91,7 +91,7 @@ export const ISLANDS = [
   { id: "cave", w: 3, q: W3Q - 2, r: 2, name: "冰晶洞", cost: { ice: 34, pelt: 10 }, nodes: { silver: 4, icecrystal: 2 }, cold: 3.5, fires: 2, mobs: { wisp: 2 } },
   { id: "bliz1", w: 3, q: W3Q + 2, r: 0, name: "東暴風雪原", cost: { silverbar: 14, pelt: 14 }, nodes: { cedar: 3, silver: 2 }, cold: 4, blizzard: true, fires: 3, mobs: { wolf: 4 } },
   { id: "bliz2", w: 3, q: W3Q - 2, r: 0, name: "西暴風雪原", cost: { silverbar: 17, ice: 34 }, nodes: { icecrystal: 3, silver: 2 }, cold: 4, blizzard: true, fires: 3, mobs: { wolf: 3, wisp: 1 } },
-  { id: "ruins", w: 3, q: W3Q, r: 2, name: "古代遺跡", cost: { silverbar: 20, shard: 7 }, nodes: { silver: 3 }, cold: 3.5, fires: 2, mobs: { wisp: 3 } },
+  { id: "ruins", w: 3, q: W3Q, r: 2, name: "古代遺跡", cost: { silverbar: 20, shard: 7 }, nodes: { silver: 2 }, cold: 3.5, fires: 2, mobs: { wisp: 3 } },
   { id: "den", w: 3, q: W3Q - 1, r: 2, name: "雪怪巢穴", cost: { silverbar: 20, pelt: 17 }, nodes: { icecrystal: 2 }, cold: 4, fires: 2, mobs: { yeti: 2 } },
   { id: "icebridge", w: 3, q: W3Q + 2, r: -2, name: "冰橋", cost: { ice: 41, silverbar: 10 }, nodes: { fishhole: 3 }, cold: 3, fires: 1 },
   { id: "altar", w: 3, q: W3Q, r: -2, name: "極光祭壇", cost: { silverbar: 27, shard: 17, pearl: 2 }, plots: ["shrine", "bridge_altar_throne"], nodes: { icecrystal: 2 }, cold: 3.5, fires: 2, mobs: { wisp: 2 } },
