@@ -1,6 +1,6 @@
 // 浮島工房 — 3D 畫面、操作、介面、音效（遊戲規則都在 logic.js）
 import * as THREE from "three";
-import { HR, APO, RES, RES_ORDER, NODES, PLOTS, UPGRADES, RECIPES, PLAYER, BOSS, BOSS2, BOSS3, HEAT, COLD, FOODS, FOOD_CAP, ISLANDS } from "./data.js";
+import { HR, APO, RES, RES_ORDER, NODES, PLOTS, UPGRADES, RECIPES, PLAYER, BOSS, BOSS2, BOSS3, HEAT, COLD, FOODS, FOOD_CAP, ISLANDS, RUINS } from "./data.js";
 import { createGame, serialize, update, upgrade, enqueue, nearPlot, bagCap, bagTotal, have, canAfford, islandAt, plotAvailable, cook, eat } from "./logic.js";
 
 const $ = (id) => document.getElementById(id);
@@ -254,7 +254,30 @@ const plotMeshes = new Map();
 function buildPlot(pl) {
   const old = plotMeshes.get(pl.id); if (old) scene.remove(old.g);
   const g = new THREE.Group(); g.position.set(pl.x, 0, pl.z);
-  if (!pl.built && pl.type === "fire") { // 營火預定地：一圈石頭
+  if (pl.type === "bridge") {
+    // 朝向目標地塊；沒蓋好之前，邊上有一排冰刺擋路
+    const t = G.byId[pl.edge]; g.rotation.y = Math.atan2(t.cx - pl.x, t.cz - pl.z);
+    if (!pl.built) {
+      for (let k = -4; k <= 4; k++) { const h = 0.7 + ((k * 7) % 3) * 0.25; const sp = new THREE.Mesh(new THREE.ConeGeometry(0.2, h, 5), M4.ice); sp.position.set(k * 0.4, h / 2, 0.85); sp.castShadow = true; g.add(sp); }
+      const pad = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.65, 24), new THREE.MeshBasicMaterial({ color: 0xffc940, transparent: true, opacity: 0.55, depthWrite: false })); pad.rotation.x = -Math.PI / 2; pad.position.y = 0.02; g.add(pad);
+      const lab = labelSprite(); lab.position.y = 1.9; g.add(lab); g.userData.label = lab;
+    } else {
+      for (let k = -3; k <= 3; k++) { const pk = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.07, 0.22), k % 2 ? M.wood : M.woodDark); pk.position.set(0, 0.04, 0.85 + k * 0.25); g.add(pk); }
+      for (const x of [-0.7, 0.7]) for (const z of [0.1, 1.6]) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.6, 6), M.woodDark); post.position.set(x, 0.3, z); g.add(post); }
+      for (const x of [-0.7, 0.7]) { const rope = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 1.5), M.white); rope.position.set(x, 0.55, 0.85); g.add(rope); }
+    }
+  } else if (pl.built && pl.type === "gather") {
+    const fishing = pl.id === "gather_lake";
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.8), M.wood); body.position.y = 0.35; body.castShadow = true; g.add(body);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(0.85, 0.5, 4), pl.w === 3 ? M4.snow : pl.w === 2 ? SAND[1] : mat(0x4fa83d)); roof.position.y = 0.95; roof.rotation.y = Math.PI / 4; roof.castShadow = true; g.add(roof);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.45, 0.04), M.woodDark); door.position.set(0, 0.23, 0.41); g.add(door);
+    const sign = new THREE.Mesh(fishing ? new THREE.ConeGeometry(0.1, 0.3, 5) : new THREE.BoxGeometry(0.22, 0.22, 0.05), fishing ? mat(0x5aa8e0) : M.metal); sign.position.set(0.3, 0.55, 0.43); if (fishing) sign.rotation.z = Math.PI / 2; g.add(sign);
+  } else if (pl.built && pl.type === "altar") {
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.95, 0.35, 6), ICEROCK[0]); base.position.y = 0.17; base.castShadow = true; g.add(base);
+    [0x5affa0, 0x5ab8ff, 0xc07aff].forEach((c, k) => { const a = k * 2.09; const cr = new THREE.Mesh(new THREE.OctahedronGeometry(0.2, 0), new THREE.MeshBasicMaterial({ color: c })); cr.scale.y = 1.8; cr.position.set(Math.cos(a) * 0.45, 0.75, Math.sin(a) * 0.45); g.add(cr); });
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.4, 9, 8, 1, true), new THREE.MeshBasicMaterial({ color: 0x9affd8, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false })); beam.position.y = 4.8; g.add(beam);
+    g.userData.beam = beam;
+  } else if (!pl.built && pl.type === "fire") { // 營火預定地：一圈石頭
     for (let k = 0; k < 7; k++) { const a = k * 0.9; const st = new THREE.Mesh(new THREE.DodecahedronGeometry(0.1, 0), M.rock); st.position.set(Math.cos(a) * 0.38, 0.06, Math.sin(a) * 0.38); g.add(st); }
     const mark = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.6, 24), new THREE.MeshBasicMaterial({ color: 0xffc940, transparent: true, opacity: 0.5, depthWrite: false })); mark.rotation.x = -Math.PI / 2; mark.position.y = 0.02; g.add(mark);
     const lab = labelSprite(); lab.position.y = 1.3; g.add(lab); g.userData.label = lab;
@@ -452,6 +475,36 @@ function makeQueen() {
   queenMesh = { g, dress, arms, orbs };
 }
 const slickMeshes = new Map();
+const sheepMeshes = new Map(), workerMeshes = new Map(), blockMeshes = new Map(), plateMeshes = new Map();
+let chestMesh = null;
+function makeSheep(sh) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.IcosahedronGeometry(0.34, 1), M4.snow); body.scale.set(1, 0.85, 1.25); body.position.y = 0.42; body.castShadow = true; g.add(body);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.24), M.dark); head.position.set(0, 0.5, 0.45); g.add(head);
+  for (const x of [-0.12, 0.12]) { const ear = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.04, 0.06), M.dark); ear.position.set(x * 1.3, 0.58, 0.4); g.add(ear); }
+  for (const [x, z] of [[-0.14, 0.2], [0.14, 0.2], [-0.14, -0.2], [0.14, -0.2]]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.25, 0.07), M.dark); leg.position.set(x, 0.12, z); g.add(leg); }
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.03, 5, 10), mat(0xff5a4a)); collar.position.set(0, 0.48, 0.33); g.add(collar);
+  const mark = labelSprite(); mark.position.y = 1.25; g.add(mark);
+  scene.add(g); sheepMeshes.set(sh, { g, body, collar, mark });
+}
+function makeWorker(w) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.22, 3, 6), mat(w.plot.w === 3 ? 0x4a7ad8 : w.plot.w === 2 ? 0xd8904a : 0x4aa85a)); body.position.y = 0.42; body.castShadow = true; g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), M.skin); head.position.y = 0.76; g.add(head);
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.16, 8), mat(0xe8c060)); hat.position.y = 0.9; g.add(hat);
+  const arm = new THREE.Group(); arm.position.set(0.2, 0.55, 0); const tool = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.4, 0.04), M.woodDark); tool.position.y = -0.2; arm.add(tool); const hd = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.2), M.metal); hd.position.set(0, -0.4, 0.06); arm.add(hd); g.add(arm);
+  scene.add(g); workerMeshes.set(w, { g, arm });
+}
+function makeRuins() {
+  for (const pl of G.plates) { const g = new THREE.Group(); g.position.set(pl.x, 0.012, pl.z); const a = new THREE.Mesh(new THREE.CircleGeometry(0.5, 6), ICEROCK[1]); a.rotation.x = -Math.PI / 2; g.add(a); const b = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 6), new THREE.MeshBasicMaterial({ color: 0xffc940 })); b.rotation.x = -Math.PI / 2; b.position.y = 0.006; g.add(b); scene.add(g); plateMeshes.set(pl, b); }
+  for (const b of G.blocks) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.62, 0.62), M4.ice); m.castShadow = true; scene.add(m); blockMeshes.set(b, m); }
+  const isl = G.byId.ruins, g = new THREE.Group(); g.position.set(isl.cx + RUINS.chest[0], 0, isl.cz + RUINS.chest[1]);
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.4, 0.5), M.wood); box.position.y = 0.2; box.castShadow = true; g.add(box);
+  const lid = new THREE.Group(); lid.position.set(0, 0.4, -0.25); const lm = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.16, 0.52), M.woodDark); lm.position.set(0, 0.08, 0.25); lid.add(lm); g.add(lid);
+  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.05), mat(0xffc940, { metalness: 0.6, roughness: 0.3 })); lock.position.set(0, 0.36, 0.27); g.add(lock);
+  for (let k = 0; k < 4; k++) { const col = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.5 + (k % 2) * 0.7, 6), ICEROCK[k % 3]); const a = k * 1.57 + 0.5; col.position.set(Math.cos(a) * 2.6 - RUINS.chest[0], 0.3 + (k % 2) * 0.35, Math.sin(a) * 2.6 - RUINS.chest[1]); col.castShadow = true; g.add(col); }
+  scene.add(g); chestMesh = { g, lid };
+}
 // 雪花
 const SNOW_N = isSmall ? 260 : 420;
 const snowGeo = new THREE.BufferGeometry();
@@ -663,6 +716,9 @@ function tipText() {
     if (P.cold >= 55 && !P.warming) return "🥶 太冷會走不動！到營火的橘色圈裡取暖";
     if (G.boss3Defeated) return "🎉 第三世界完成！獲得 💠 霜之心";
     if (!G.byId.cedarwood.unlocked) return "🌲 砍雪松木開通地塊；這次可以自己決定往哪個方向開";
+    if (G.byId.ruins.unlocked && !G.ruinsSolved && islandAt(G, P.x, P.z)?.id === "ruins") return "🧊 把三個冰塊推到三個黃色壓力板上，寶箱就會打開";
+    if (G.byId.altar.unlocked && !G.altarLit) return "✨ 祭壇需要三色極光：綠（雪狼）、藍（冰元素）、紫（雪怪）各 3 個";
+    if (G.byId.ranch.unlocked && !G.sheep.some((sh) => sh.tame)) return "🐑 到牧場帶著莓果靠近雪羊，餵 4 個就能馴服，之後會長羊毛";
     if (!G.plots.some((p) => p.type === "fire" && p.built && !p.eternal)) return "🔥 站上地上的石頭圈蓋營火，站在旁邊會自動添柴";
     if (G.byId.lake.unlocked && !built("kitchen")) return "🎣 站在冰洞旁自動釣魚；到漁村蓋「廚房」做料理";
     if (G.byId.throne.unlocked) return "👑 女王有三個階段：躲冰柱、小心滑冰，最後靠營火撐過暴風雪";
@@ -701,6 +757,7 @@ for (const s of G.slimes) makeSlime(s);
 if (G.boss) makeBoss();
 if (G.boss2) makeWorm();
 if (G.boss3) makeQueen();
+if (G.blocks.length) makeRuins();
 let lookWorld = 0;
 function applyWorld() {
   if (lookWorld === G.world) return;
@@ -738,6 +795,8 @@ function handleEvents() {
         if (G.boss && !bossMesh) makeBoss();
         if (G.boss2 && !wormMesh) makeWorm();
         if (G.boss3 && !queenMesh) makeQueen();
+        if (G.blocks.length && !chestMesh) makeRuins();
+        for (const pl of G.plots) if (pl.edge === e.island.id && plotAvailable(G, pl)) buildPlot(pl);
         rebuildSignMeshes();
         toast(`🏝️ 開通了「${e.island.name}」！`); shake = 0.5;
         [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => sfx(f, 0.25, "triangle", 0.14), i * 90)); noise(0.6, 0.2, 500);
@@ -753,6 +812,11 @@ function handleEvents() {
       case "burrow": noise(0.5, 0.3, 200); shake = Math.max(shake, 0.3); burst(e.x, e.z, 0x3a3442, 14, 0.3); break;
       case "emerge": noise(0.5, 0.4, 250); shake = Math.max(shake, 0.6); burst(e.x, e.z, 0xff7a1a, 18, 0.4); break;
       case "bossWake2": toast("🪱 熔岩巨蟲出現了！"); sfx(60, 1, "sawtooth", 0.18, 40); break;
+      case "tame": toast("🐑 雪羊被馴服了！之後會定時長羊毛，走過去就能收"); [660, 880, 1100].forEach((f, i) => setTimeout(() => sfx(f, 0.2, "triangle", 0.12), i * 90)); burst(e.x, e.z, 0xff7a9a, 10, 0.9); save(); break;
+      case "shear": sfx(900, 0.1, "triangle", 0.08); burst(e.x, e.z, 0xffffff, 8, 0.6); break;
+      case "plate": sfx(520, 0.25, "triangle", 0.14); sfx(780, 0.3, "triangle", 0.1); burst(e.x, e.z, 0xffc940, 8, 0.3); break;
+      case "ruinsSolved": toast("🗝️ 遺跡的寶箱打開了！"); shake = 0.5; [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => sfx(f, 0.3, "triangle", 0.15), i * 100)); save(); break;
+      case "altarLit": toast("✨ 極光祭壇亮了！通往冰封王座的路出現了"); shake = 0.5; rebuildSignMeshes(); [392, 523, 659, 784, 1047].forEach((f, i) => setTimeout(() => sfx(f, 0.4, "sine", 0.14), i * 120)); break;
       case "freeze": sfx(1400, 0.15, "sine", 0.05, 700); burst(e.x, e.z, 0xbfeaff, 3, 0.5); break;
       case "stormSoon": toast("🌨 暴風雪快來了！"); sfx(200, 0.8, "sine", 0.08, 120); break;
       case "stormStart": noise(1.2, 0.25, 900); break;
@@ -864,6 +928,7 @@ function frame(now) {
       u.fuelLabel.visible = !pl.eternal && Math.hypot(pl.x - P.x, pl.z - P.z) < 2.6;
       if (u.fuelLabel.visible) drawLabel(u.fuelLabel, "營火", [{ text: pl.fuel > 0 ? `柴火 ${Math.ceil(pl.fuel / 5) * 5} 秒` : "熄了！需要雪松木", ok: pl.fuel > 60 }]);
     }
+    if (u.beam) { u.beam.material.opacity = 0.28 + Math.sin(t * 2) * 0.1; u.beam.rotation.y = t * 0.5; u.beam.material.color.setHSL(0.4 + Math.sin(t * 0.7) * 0.15, 1, 0.7); }
     if (u.cool) u.cool.material.opacity = 0.1 + Math.sin(t * 3) * 0.04 + (G.player.cooling ? 0.1 : 0);
     if (u.swirl) { u.swirl.rotation.z += dt * 2; u.swirl.material.opacity = 0.6 + Math.sin(t * 4) * 0.2 + (G.player.portalT ? 0.2 : 0); u.portalLabel.visible = Math.hypot(pm.g.position.x - P.x, pm.g.position.z - P.z) < 3; }
   }
@@ -939,6 +1004,29 @@ function frame(now) {
     wormMesh.segs.forEach((sg, k) => { sg.position.x = Math.sin(t * 2.5 + k * 0.8) * 0.12 * k * 0.4; if (!(k % 2)) sg.material.color.setHex(W.flash > 0 ? 0xffffff : W.enraged ? 0xff3a1a : 0xc8502a); });
     wormMesh.head.position.x = Math.sin(t * 2.5 + 4.8) * 0.3; wormMesh.head.rotation.x = 0.5 + Math.sin(t * 3) * 0.15;
   }
+
+  // 雪羊 / 採集工人 / 遺跡冰塊
+  for (const sh of G.sheep) {
+    if (!sheepMeshes.has(sh)) makeSheep(sh);
+    const sm = sheepMeshes.get(sh);
+    sm.g.position.set(sh.x, sh.moving ? Math.abs(Math.sin(t * 9 + sh.id)) * 0.05 : 0, sh.z);
+    if (sh.facing !== undefined) sm.g.rotation.y = sh.facing;
+    sm.collar.visible = sh.tame;
+    const puff = 1 + sh.wool * 0.12; sm.body.scale.set(puff, 0.85 * puff, 1.25 * puff);
+    const near = Math.hypot(sh.x - P.x, sh.z - P.z) < 3;
+    sm.mark.visible = near && (!sh.tame || sh.wool > 0);
+    if (sm.mark.visible) drawLabel(sm.mark, sh.tame ? `🐑 羊毛 ×${sh.wool}` : "野生雪羊", sh.tame ? [] : [{ text: `🫐 ${sh.fed}/4`, ok: false }]);
+  }
+  for (const w of G.workers) {
+    if (!workerMeshes.has(w)) makeWorker(w);
+    const wm = workerMeshes.get(w);
+    wm.g.position.set(w.x, w.moving ? Math.abs(Math.sin(t * 11 + w.id)) * 0.05 : 0, w.z);
+    if (w.facing !== undefined) wm.g.rotation.y = w.facing;
+    wm.arm.rotation.x = w.working ? -1.6 + Math.abs(Math.sin(t * 6 + w.id)) * 1.5 : 0;
+  }
+  for (const [b, m] of blockMeshes) { m.position.set(b.x, 0.31, b.z); m.rotation.y = b.locked ? 0 : (b.x + b.z) * 0.3; }
+  for (const [pl, m] of plateMeshes) m.material.color.setHex(pl.on ? 0x5aff8a : 0xffc940);
+  if (chestMesh) chestMesh.lid.rotation.x += ((G.ruinsSolved ? -1.9 : 0) - chestMesh.lid.rotation.x) * Math.min(1, dt * 4);
 
   // 霜之女王 / 滑冰 / 雪
   const Q = G.boss3;
