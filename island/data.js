@@ -1,5 +1,5 @@
 // 浮島工房 — 世界資料（第一世界：綠草森林群島）
-export const HR = 5;                 // 六角島外接圓半徑
+export const HR = 3.8;                 // 六角島外接圓半徑
 export const APO = (HR * Math.sqrt(3)) / 2; // 邊心距
 
 export const RES = {
@@ -16,15 +16,15 @@ export const RES_ORDER = ["wood", "stone", "copper", "emerald", "plank", "ingot"
 
 // 資源節點：hp 為需要的「工具傷害」，工具等級越高打越快
 export const NODES = {
-  tree: { tool: "axe", hp: 3, drop: { wood: 2 }, respawn: 14, r: 0.5 },
-  bigtree: { tool: "axe", hp: 6, drop: { wood: 5 }, respawn: 26, r: 0.75 },
+  tree: { tool: "axe", hp: 6, per: 2, drop: { wood: 1 }, respawn: 14, r: 0.5 },   // 每 2 點傷害掉 1 個木頭，共 3 個
+  bigtree: { tool: "axe", hp: 12, per: 2, drop: { wood: 1 }, respawn: 26, r: 0.7 },
   rock: { tool: "pick", hp: 4, drop: { stone: 2 }, respawn: 18, r: 0.55 },
   copper: { tool: "pick", hp: 5, drop: { copper: 2 }, respawn: 30, r: 0.55 },
   emerald: { tool: "pick", hp: 7, drop: { emerald: 1 }, respawn: 40, r: 0.5, minLevel: 2 },
 };
 
 export const ISLANDS = [
-  { id: "home", q: 0, r: 0, name: "主島", nodes: { tree: 4, rock: 3 }, plots: ["warehouse", "workbench", "hut"] },
+  { id: "home", q: 0, r: 0, name: "主島", nodes: { tree: 3, rock: 2 }, plots: ["warehouse", "workbench", "hut"] },
   { id: "pine", q: 1, r: 0, name: "松林", cost: { wood: 8 }, nodes: { tree: 7 } },
   { id: "gravel", q: -1, r: 1, name: "碎石坡", cost: { wood: 14, stone: 6 }, nodes: { rock: 5, tree: 1 } },
   { id: "copper", q: 0, r: 1, name: "銅礦谷", cost: { wood: 24, stone: 18 }, nodes: { copper: 4, rock: 2 }, slimes: 2 },
@@ -37,10 +37,10 @@ export const ISLANDS = [
 
 // 建築地基（在所屬島上的相對位置）
 export const PLOTS = {
-  warehouse: { name: "倉庫", pos: [-1.6, -1.0], prebuilt: true, r: 2.0 },
-  workbench: { name: "工匠台", pos: [1.7, -1.0], cost: { wood: 12, stone: 6 }, r: 1.5 },
-  hut: { name: "小幫手小屋", pos: [0, 1.9], cost: { wood: 24, stone: 18, copper: 6 }, r: 1.5 },
-  factory: { name: "加工廠", pos: [0, 0], cost: { stone: 20, copper: 10 }, r: 1.7 },
+  warehouse: { name: "倉庫", pos: [-1.25, -0.8], prebuilt: true, r: 1.6 },
+  workbench: { name: "工匠台", pos: [1.2, -0.75], cost: { wood: 12, stone: 6 }, r: 1.3 },
+  hut: { name: "小幫手小屋", pos: [0.1, 1.55], cost: { wood: 24, stone: 18, copper: 6 }, r: 1.3 },
+  factory: { name: "加工廠", pos: [0, 0], cost: { stone: 20, copper: 10 }, r: 1.5 },
 };
 
 // 工匠台升級：每一項的第 i 個元素是升到 Lv(i+2) 的費用
@@ -58,6 +58,6 @@ export const RECIPES = [
 ];
 
 export const PLAYER = { speed: 4.2, maxHp: 100, regen: 6, regenDelay: 3, swing: 0.42, reach: 0.85 };
-export const SLIME = { hp: 24, dmg: 7, speed: 2.1, aggro: 4.5, cd: 1.0, respawn: 22, drop: { gel: 1 } };
-export const BOSS = { hp: 520, r: 1.4, slamR: 2.0, slamDmg: 22, rockR: 1.25, rockDmg: 16, warn: 1.2, every: 2.4 };
+export const SLIME = { hp: 24, dmg: 7, speed: 2.1, aggro: 3.0, cd: 1.0, respawn: 22, drop: { gel: 1 } };
+export const BOSS = { hp: 520, r: 1.1, slamR: 1.6, slamDmg: 22, rockR: 1.0, rockDmg: 16, warn: 1.2, every: 2.4 };
 export const HELPER = { cap: 10, speed: 4.2 };
