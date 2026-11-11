@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#05080e">
+  <title>星域戰陣 // NEON LAB</title>
+  <meta name="description" content="科幻自走棋：選擇陣營、在人口上限內擺出陣型，部隊自動向前衝鋒並施放技能。闖過 100 關，用金幣擴軍、用永久升級強化全軍。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="arena.css">
+</head>
+<body>
+  <div id="app">
+    <header class="top">
+      <a class="hbtn" href="../" aria-label="回首頁">←</a>
+      <div class="stage"><b id="stageNo">STAGE 01</b><small id="stageSub"></small></div>
+      <div class="stat gold" title="金幣"><i>◎</i><b id="gold">0</b></div>
+      <div class="stat sup" id="supBox" title="人口"><i>▲</i><b id="sup">0/10</b></div>
+      <button class="hbtn" id="bMenu" aria-label="選單">☰</button>
+    </header>
+
+    <main class="field" id="field">
+      <canvas id="cv" aria-label="戰場"></canvas>
+      <button class="go" id="bGo">⚔ 開 戰</button>
+      <button class="spd" id="bAuto">⚙ 自動佈陣</button>
+      <button class="spd" id="bSpd" hidden>▶ x1</button>
+      <p class="toast" id="toast" role="status" aria-live="polite"></p>
+    </main>
+
+    <footer class="cmd" id="cmd">
+      <div class="info" id="info"></div>
+      <nav class="tabs" id="tabs">
+        <button data-tab="bench" class="on">待命區</button>
+        <button data-tab="shop">兵營</button>
+        <button data-tab="tech">科技</button>
+      </nav>
+      <div class="pane" id="pane"></div>
+    </footer>
+  </div>
+
+  <img id="ghost" class="ghost" alt="" hidden>
+
+  <div class="overlay" id="ovStart">
+    <div class="box">
+      <p class="tag">TOPIC_04 // STAR ARENA</p>
+      <h1>星域戰陣</h1>
+      <div id="startBody"></div>
+    </div>
+  </div>
+  <div class="overlay" id="ovEnd" hidden><div class="box" id="endBody"></div></div>
+  <div class="overlay" id="ovMenu" hidden>
+    <div class="box">
+      <h2>選單</h2>
+      <ul class="howto">
+        <li>戰鬥完全自動，不需要任何操作；只有開戰前要決定陣型</li>
+        <li>懶得擺就按「自動佈陣」；想微調再拖曳單位，拖出戰場就收回待命區</li>
+        <li>每個單位佔用人口，上場總人口不能超過上限</li>
+        <li>開戰後全軍自動向前衝鋒、自動放技能</li>
+        <li>三個相同單位會自動合成升星（★ → ★★ → ★★★）</li>
+        <li>過關拿金幣，並三選一永久升級</li>
+      </ul>
+      <button class="btn" id="bResume">繼續</button>
+      <button class="btn ghostbtn" id="bReset">放棄並重新開始</button>
+    </div>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
