@@ -1,5 +1,5 @@
 // 星域戰陣 — 純邏輯（不碰 DOM，可在 node 裡跑平衡測試）
-import { UNITS, CARDS, STAR_MUL, MAX_STAGE, TIER_STAGE } from './data.js';
+import { UNITS, CARDS, STAR_MUL, MAX_STAGE, TIER_STAGE, BOSSES } from './data.js';
 
 export const W = 480, H = 760, CELL = 60, COLS = 8, ROWS = 4;
 export const P_TOP = 500, E_BOT = 260; // 玩家區上緣、敵方區下緣
@@ -82,14 +82,16 @@ export function mergeRoster(roster) {
 export function genEnemy(stage) {
   const rnd = rng32(stage * 7919 + 13);
   const facs = ['fed', 'lum', 'brood'];
-  const fac = facs[Math.floor(rnd() * 3)];
+  let fac = facs[Math.floor(rnd() * 3)];
   const boss = stage % 10 === 0;
+  const bi = stage / 10 - 1;
+  if (boss) fac = UNITS[BOSSES[bi % BOSSES.length]].fac;
   let budget = 4 + stage * 1.5 + stage * stage * 0.032;
   const pool = Object.values(UNITS).filter((d) => d.fac === fac && d.tier < 9 && unlocked(d, stage));
   const list = [];
   if (boss) {
-    const top = pool.reduce((a, b) => (b.cost > a.cost ? b : a));
-    list.push({ type: top.id, star: stage < 30 ? 1 : stage < 50 ? 2 : 3, boss: true });
+    // 每 10 關一隻專屬首領；第二輪（60 關起）是強化變種
+    list.push({ type: BOSSES[bi % BOSSES.length], star: stage <= 30 ? 1 : stage <= 70 ? 2 : 3, boss: true, variant: Math.floor(bi / BOSSES.length) });
     budget *= 0.55;
   }
   const minCost = Math.min(...pool.map((d) => d.cost));
@@ -133,13 +135,13 @@ export function genEnemy(stage) {
 // ── 戰鬥模擬 ──
 let UID = 1;
 function mk(S, type, star, team, x, y, mods, boss) {
-  const d = UNITS[type], sm = STAR_MUL[star - 1], hm = sm * (boss ? 2.2 : 1), dm = sm * (boss ? 1.4 : 1), f = mods.f;
+  const d = UNITS[type], sm = STAR_MUL[star - 1], hm = sm, dm = sm, f = mods.f;
   let range = d.range;
   if (range > 50) range *= mods.range * (f.siege && (type === 'tank' || type === 'sniper') ? 1.25 : 1);
   const fast = f.metab && (type === 'clawling' || type === 'burster') ? 1.3 : 1;
   const u = {
     id: UID++, team, type, def: d, star, boss: !!boss, x, y, alive: true,
-    r: d.r * 1.3 * (1 + 0.14 * (star - 1)) * (boss ? 1.4 : 1),
+    r: d.r * 1.3 * (1 + (boss ? 0.06 : 0.14) * (star - 1)),
     maxHp: d.hp * hm * mods.hp, maxSh: d.sh * hm * mods.hp * mods.sh, dmg: d.dmg * dm * mods.dmg,
     armor: d.armor + mods.armor + (star - 1), range, cd: d.cd / (mods.as * fast), spd: d.spd * mods.ms * fast,
     ls: mods.ls, regen: mods.regen, f,
@@ -165,7 +167,7 @@ export function createBattle(roster, ups, stage, enemy) {
   }
   for (const e of enemy.list) {
     const [x, y] = cellPos(1, e.cell[0], e.cell[1]);
-    mk(S, e.type, e.star, 1, x, y, em, e.boss);
+    mk(S, e.type, e.star, 1, x, y, em, e.boss).variant = e.variant || 0;
   }
   S.pm = pm; S.em = em;
   return S;
@@ -181,7 +183,7 @@ function hit(S, src, t, dmg, pure) {
   const total = dmg;
   if (t.bar > 0) { const a = Math.min(t.bar, dmg); t.bar -= a; dmg -= a; }
   if (dmg > 0 && t.sh > 0) { const a = Math.min(t.sh, dmg); t.sh -= a; dmg -= a; }
-  if (dmg > 0) t.hp -= pure ? dmg : Math.max(dmg * 0.2, dmg - t.armor);
+  if (dmg > 0) t.hp -= pure ? dmg : Math.max(dmg * 0.35, dmg - t.armor);
   t.lastHit = S.t; t.flash = 0.12;
   if (src && src.ls && src.alive) heal(S, src, total * src.ls);
   if (t.def.skill && t.def.skill.id === 'blink' && t.sh <= 0 && t.skillT <= 0 && t.hp > 0) {
@@ -212,9 +214,28 @@ function attack(S, u, t) {
   S.ev.push({ k: 'shot', a, x1: u.x, y1: u.y, x2: t.x, y2: t.y, r: u.r, team: u.team });
   const tx = t.x, ty = t.y;
   if (u.chargeHit) { u.chargeHit = false; if (u.f.chstun) t.stunT = Math.max(t.stunT, 1.2); }
-  hit(S, u, t, u.dmg);
-  if (a === 'flame' || a === 'shell' || a === 'cleave') splash(S, u, tx, ty, d.splash, u.dmg * 0.6, t);
-  if (a === 'shell') S.ev.push({ k: 'boom', x: tx, y: ty, r: d.splash, c: 'fire' });
+  let dmg = u.dmg;
+  if (d.ramp) { // 聚焦光束：打同一目標越打越痛
+    u.ramp = u.rampId === t.id ? Math.min(10, u.ramp + 1) : 0; u.rampId = t.id;
+    dmg *= 1 + 0.2 * u.ramp;
+  }
+  hit(S, u, t, dmg);
+  if (a === 'flame' || a === 'shell' || a === 'cleave' || a === 'missile') splash(S, u, tx, ty, d.splash, u.dmg * 0.6, t);
+  if (a === 'shell' || a === 'missile') S.ev.push({ k: 'boom', x: tx, y: ty, r: d.splash, c: 'fire' });
+  if (d.bounce) {
+    const near = S.units.filter((e) => e.alive && e.team !== u.team && e !== t && Math.hypot(e.x - tx, e.y - ty) < 80).sort((p, q) => Math.hypot(p.x - tx, p.y - ty) - Math.hypot(q.x - tx, q.y - ty)).slice(0, d.bounce);
+    for (const e of near) { S.ev.push({ k: 'shot', a: 'acid', x1: tx, y1: ty, x2: e.x, y2: e.y, r: 0 }); hit(S, u, e, u.dmg * 0.6); }
+  }
+  if (a === 'pierce') {
+    // 沿著「自己 → 目標」方向延伸到射程盡頭，線上的敵人全部命中
+    const L = Math.hypot(tx - u.x, ty - u.y) || 1, nx = (tx - u.x) / L, ny = (ty - u.y) / L, len = u.range + u.r + 30;
+    for (const e of S.units) {
+      if (!e.alive || e.team === u.team || e === t) continue;
+      const px = e.x - u.x, py = e.y - u.y, along = px * nx + py * ny;
+      if (along > 0 && along < len && Math.abs(px * ny - py * nx) < e.r + 9) hit(S, u, e, u.dmg);
+    }
+    S.ev.push({ k: 'spikes', x1: u.x + nx * u.r, y1: u.y + ny * u.r, x2: u.x + nx * len, y2: u.y + ny * len });
+  }
   if (a === 'sweep') for (const e of S.units) if (e.alive && e.team !== u.team && e !== t && Math.abs(e.x - tx) < 78 && Math.abs(e.y - ty) < 30) hit(S, u, e, u.dmg);
   if (a === 'spawn') {
     const mine = S.units.filter((e) => e.alive && e.owner === u.id).length;
@@ -259,7 +280,7 @@ function castSkill(S, u, t, engaged) {
     case 'nova':
       if (!engaged) return;
       S.ev.push({ k: 'shot', a: 'nova', x1: u.x, y1: u.y, x2: t.x, y2: t.y }, { k: 'boom', x: t.x, y: t.y, r: 40, c: 'nova', big: true });
-      hit(S, u, t, u.dmg * 18); splash(S, u, t.x, t.y, 40, u.dmg * 5, t); done(); break;
+      hit(S, u, t, u.dmg * (u.def.boss ? 10 : 18)); splash(S, u, t.x, t.y, 40, u.dmg * 5, t); done(); break;
     case 'charge': {
       const e = t ? edge(u, t) : 999;
       if (!t || e < 30 || e > 230) return;
@@ -279,12 +300,45 @@ function castSkill(S, u, t, engaged) {
         if (n > bn) { bn = n; best = e; }
       }
       if (!best) return;
-      S.zones.push({ k: 'storm', x: best.x, y: best.y, r: 58 * big, t: 3, tick: 0, team: u.team, dmg: 14 * STAR_MUL[u.star - 1] * (u.dmg / (u.def.dmg * STAR_MUL[u.star - 1])), src: u });
+      S.zones.push({ k: 'storm', x: best.x, y: best.y, r: 58 * big, t: 3, tick: 0, team: u.team, dmg: (u.def.boss ? 8 : 18) * STAR_MUL[u.star - 1] * (u.dmg / (u.def.dmg * STAR_MUL[u.star - 1])), src: u });
       done(); break;
     }
     case 'warp':
       if (!engaged) return;
       S.zones.push({ k: 'warp', x: t.x, y: t.y, r: 100 * big, t: 4.5, tick: 0, team: u.team }); done(); break;
+    case 'bulwark':
+      if (!engaged) return;
+      u.bar = Math.max(u.bar, u.maxHp * 0.3); S.ev.push({ k: 'ring', x: u.x, y: u.y, r: u.r * 2, c: '#cfe6ff' }); done(); break;
+    case 'barrage': {
+      const c = S.units.filter((e) => e.alive && e.team !== u.team && edge(u, e) <= u.range * 1.35);
+      if (!c.length) return;
+      const n = u.def.boss ? 8 : 4;
+      for (let i = 0; i < n; i++) {
+        const e = c[Math.floor(S.rnd() * c.length)];
+        S.ev.push({ k: 'shot', a: 'missile', x1: u.x, y1: u.y, x2: e.x, y2: e.y, r: u.r }, { k: 'boom', x: e.x, y: e.y, r: 26, c: 'fire' });
+        splash(S, u, e.x, e.y, 26, u.dmg * (u.def.boss ? 0.6 : 1.3));
+      }
+      done(); break;
+    }
+    case 'shadowstep': {
+      let best = null;
+      for (const e of S.units) if (e.alive && e.team !== u.team && dist(u, e) < 420 && (!best || e.hp + e.sh < best.hp + best.sh)) best = e;
+      if (!best || edge(u, best) < 20) return;
+      S.ev.push({ k: 'blink', x: u.x, y: u.y, team: u.team });
+      u.x = best.x + (S.rnd() - 0.5) * 10; u.y = Math.max(u.r, Math.min(H - u.r, best.y + (u.team === 0 ? -1 : 1) * (best.r + u.r)));
+      u.tgt = best; u.atkT = 0.2;
+      S.ev.push({ k: 'blink', x: u.x, y: u.y, team: u.team }, { k: 'shot', a: 'melee', x1: u.x, y1: u.y, x2: best.x, y2: best.y, team: u.team });
+      hit(S, u, best, u.dmg * 2); done(); break;
+    }
+    case 'hatch': {
+      if (S.units.filter((e) => e.alive && e.owner === u.id).length > 8) return;
+      for (let i = 0; i < 4; i++) {
+        const b = mk(S, 'clawling', u.star, u.team, u.x + (i - 1.5) * 16, u.y + (u.team === 0 ? -1 : 1) * (u.r + 8), u.team === 0 ? S.pm : S.em);
+        b.owner = u.id; b.life = 12;
+        S.ev.push({ k: 'boom', x: b.x, y: b.y, r: 14, c: 'acid' });
+      }
+      done(); break;
+    }
     case 'regen':
       if (u.hp > u.maxHp * 0.45) return;
       u.regenT = 4; done(); break;

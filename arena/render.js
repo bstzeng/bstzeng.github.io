@@ -218,13 +218,163 @@ const SHAPES = {
     c.strokeStyle = '#3a1a4a'; c.lineWidth = 1; for (let i = 0; i < 4; i++) { const sy = i % 2 ? 1 : -1; c.beginPath(); c.moveTo(i < 2 ? s * 0.3 : -s * 0.3, 0); c.lineTo((i < 2 ? s * 0.5 : -s * 0.5) + Math.sin(t * 28 + i) * s * 0.3, sy * s * 1.1); c.stroke(); }
     ell(c, 0, 0, s * 0.9, s * 0.55, '#c070e0', '#22092e'); circ(c, s * 0.6, 0, s * 0.2, '#ffb040');
   },
+  // ── 新增兵種 ──
+  guard(c, s, t, k, mv) {
+    const m = metal(c, s, '#9db8dc', '#2f4a72');
+    ell(c, -s * 0.1, -s * 0.7, s * 0.5, s * 0.34, m, '#0e1a2c'); ell(c, -s * 0.1, s * 0.7, s * 0.5, s * 0.34, m, '#0e1a2c');
+    circ(c, -s * 0.05, 0, s * 0.66, m, '#0e1a2c');
+    circ(c, s * 0.05, 0, s * 0.34, '#34527e', '#0e1a2c');
+    c.save(); c.translate(s * (0.72 + k * 0.25), 0);                                                  // 塔盾
+    poly(c, [0, -s * 0.95, s * 0.28, -s * 0.8, s * 0.34, 0, s * 0.28, s * 0.8, 0, s * 0.95, -s * 0.08, 0], metal(c, s, '#d8e6f8', '#4d6c96'), '#0e1a2c', 1.2);
+    c.strokeStyle = '#6fd3ff'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(s * 0.14, -s * 0.6); c.lineTo(s * 0.18, s * 0.6); c.stroke();
+    c.restore();
+  },
+  cyclone(c, s, t, k, mv) {
+    const m = metal(c, s, '#7d9cc4', '#24364f');
+    c.strokeStyle = '#141c26'; c.lineWidth = s * 0.2; c.lineCap = 'round';                             // 雙足
+    const w = mv ? Math.sin(t * 8) * 0.3 : 0;
+    c.beginPath(); c.moveTo(-s * 0.1, -s * 0.5); c.lineTo(s * (0.1 + w), -s * 0.62); c.moveTo(-s * 0.1, s * 0.5); c.lineTo(s * (0.1 - w), s * 0.62); c.stroke();
+    for (const sg of [-1, 1]) {                                                                        // 飛彈莢艙
+      poly(c, [-s * 0.5, sg * s * 0.5, s * 0.55 - k * s * 0.2, sg * s * 0.5, s * 0.55 - k * s * 0.2, sg * s * 0.98, -s * 0.5, sg * s * 0.98], '#2b3c55', '#0e1a2c');
+      for (let i = 0; i < 2; i++) circ(c, s * 0.45 - k * s * 0.2, sg * s * (0.63 + i * 0.22), s * 0.08, '#ff6a3a');
+    }
+    poly(c, [s * 0.7, 0, s * 0.3, -s * 0.46, -s * 0.6, -s * 0.46, -s * 0.8, 0, -s * 0.6, s * 0.46, s * 0.3, s * 0.46], m, '#0e1a2c', 1.2);
+    poly(c, [s * 0.5, 0, s * 0.2, -s * 0.2, -s * 0.1, 0, s * 0.2, s * 0.2], '#ffb347', '#5a3410');
+  },
+  shade(c, s, t, k) {
+    c.globalAlpha = 0.55; poly(c, [-s * 1.3, -s * 0.5, -s * 0.2, -s * 0.6, s * 0.3, 0, -s * 0.2, s * 0.6, -s * 1.3, s * 0.5, -s * 0.8, 0], '#3a1f6a'); c.globalAlpha = 1; // 殘影披風
+    poly(c, [s * 0.6, 0, s * 0.0, -s * 0.5, -s * 0.7, -s * 0.3, -s * 0.5, 0, -s * 0.7, s * 0.3, s * 0.0, s * 0.5], metal(c, s, '#4a3a78', '#140c2a'), '#0a0616');
+    c.save(); c.translate(s * 0.3, s * 0.3); c.rotate(-0.9 + k * 2.6);                                 // 鐮形能量刃
+    glow(c, s * 0.8, 0, s * 0.7, 'rgba(60,255,160,.5)');
+    c.strokeStyle = '#8affc8'; c.lineWidth = s * 0.16; c.lineCap = 'round'; c.beginPath(); c.arc(s * 0.5, s * 0.5, s * 0.9, -2.2, -0.6); c.stroke();
+    c.strokeStyle = '#eafff4'; c.lineWidth = s * 0.05; c.stroke();
+    c.restore();
+    circ(c, s * 0.2, 0, s * 0.09, '#5cffb0'); glow(c, s * 0.2, 0, s * 0.35, 'rgba(90,255,170,.7)');
+  },
+  prism(c, s, t, k) {
+    const m = metal(c, s, '#fff0b0', '#b0842e');
+    for (const sg of [-1, 1]) poly(c, [s * 0.5, sg * s * 0.2, -s * 0.3, sg * s * 1.0, -s * 0.9, sg * s * 0.8, -s * 0.5, sg * s * 0.2], m, '#5a3c0c', 1.2); // 雙翼
+    poly(c, [s * 0.9, 0, s * 0.2, -s * 0.34, -s * 0.8, -s * 0.2, -s * 0.6, 0, -s * 0.8, s * 0.2, s * 0.2, s * 0.34], '#2a3a6a', '#0c1430', 1.2);
+    c.save(); c.translate(s * 0.25, 0); c.rotate(t * 2);
+    poly(c, [s * 0.28, 0, 0, -s * 0.28, -s * 0.28, 0, 0, s * 0.28], '#c8fbff', '#3fd8ff'); c.restore();     // 稜鏡核心
+    glow(c, s * 0.25, 0, s * (0.5 + k * 1.2), 'rgba(90,240,255,.8)');
+    glow(c, -s * 0.8, 0, s * 0.4, 'rgba(90,190,255,.8)');
+  },
+  wyrm(c, s, t, k) {
+    const f = Math.sin(t * 10) * 0.35;
+    for (const sg of [-1, 1]) {                                                                        // 膜翼
+      c.save(); c.scale(1, sg); c.rotate(f * 0.5);
+      poly(c, [s * 0.2, s * 0.15, s * 0.5, s * 1.25, -s * 0.2, s * 0.95, -s * 0.6, s * 1.15, -s * 0.7, s * 0.2], 'rgba(170,90,210,.75)', '#2a0c3a');
+      c.strokeStyle = '#f0e2c0'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, s * 0.15); c.lineTo(s * 0.5, s * 1.25); c.moveTo(-s * 0.2, s * 0.15); c.lineTo(-s * 0.2, s * 0.95); c.stroke();
+      c.restore();
+    }
+    c.strokeStyle = '#6a2f8a'; c.lineWidth = s * 0.3; c.lineCap = 'round'; c.beginPath(); c.moveTo(-s * 0.4, 0); c.quadraticCurveTo(-s * 0.9, Math.sin(t * 5) * s * 0.3, -s * 1.3, 0); c.stroke();
+    ell(c, 0, 0, s * 0.7, s * 0.34, metal(c, s, '#b070d8', '#4a2068'), '#22092e');
+    ell(c, s * 0.6 - k * s * 0.2, 0, s * 0.3, s * 0.24, '#8a4aaa', '#22092e');
+    glow(c, s * 0.85, 0, s * (0.2 + k * 0.6), 'rgba(160,255,60,.8)');
+    circ(c, s * 0.68, -s * 0.1, s * 0.05, '#ff9a2a'); circ(c, s * 0.68, s * 0.1, s * 0.05, '#ff9a2a');
+  },
+  lurker(c, s, t, k, mv) {
+    c.strokeStyle = '#3a1a2a'; c.lineWidth = s * 0.13; c.lineCap = 'round';
+    for (let i = 0; i < 6; i++) { const sy = i % 2 ? 1 : -1, x = -0.5 + Math.floor(i / 2) * 0.45, w = mv ? Math.sin(t * 12 + i) * 0.2 : 0; c.beginPath(); c.moveTo(s * x, sy * s * 0.4); c.lineTo(s * (x + 0.15 + w), sy * s * 0.85); c.lineTo(s * (x - 0.05 + w), sy * s * 1.1); c.stroke(); }
+    ell(c, -s * 0.1, 0, s * 0.85, s * 0.6, metal(c, s, '#7a4a8a', '#2a1034'), '#12051a', 1.2);
+    for (let i = 0; i < 7; i++) {                                                                      // 背棘
+      const a = Math.PI * 0.5 + (i - 3) * 0.42, len = s * (0.55 + k * 0.5 + (i % 2) * 0.12), bx = -s * 0.1 + Math.cos(a) * s * 0.5, by = Math.sin(a) * s * 0.35;
+      for (const sg of [-1, 1]) poly(c, [bx - s * 0.07, sg * by, bx + s * 0.07, sg * by, bx - s * 0.25 + Math.cos(a) * len * 0.3, sg * (by + Math.sin(a) * len)], '#f0e2c0', '#6a5a3a');
+    }
+    ell(c, s * 0.6, 0, s * 0.3, s * 0.36, '#6a3a80', '#12051a');
+    circ(c, s * 0.72, -s * 0.13, s * 0.06, '#c8ff6a'); circ(c, s * 0.72, s * 0.13, s * 0.06, '#c8ff6a');
+  },
+  // ── 首領：每隻都是專屬造型。v = 0 一般、1 狂化變種（換配色）──
+  titan(c, s, t, k, mv, v) {
+    const A = v ? ['#e07a5a', '#5a1c14', '#ff3b3b'] : ['#8eaad0', '#22344f', '#ffb347'], m = metal(c, s, A[0], A[1]);
+    const w = mv ? Math.sin(t * 5) * 0.12 : 0;
+    for (const sg of [-1, 1]) {                                                                        // 重型腿部
+      poly(c, [-s * 0.5, sg * s * 0.55, s * (0.35 + sg * w), sg * s * 0.55, s * (0.45 + sg * w), sg * s * 0.95, -s * 0.6, sg * s * 0.95], '#161d28', '#05080e', 1.4);
+      c.fillStyle = A[2]; c.fillRect(s * (0.2 + sg * w), sg * s * 0.72 - s * 0.04, s * 0.16, s * 0.08);
+    }
+    poly(c, [s * 0.75, 0, s * 0.45, -s * 0.5, -s * 0.55, -s * 0.6, -s * 0.85, -s * 0.25, -s * 0.85, s * 0.25, -s * 0.55, s * 0.6, s * 0.45, s * 0.5], m, '#05080e', 1.8);
+    for (const sg of [-1, 1]) {                                                                        // 雙肩重砲
+      c.fillStyle = '#10161f'; c.fillRect(-s * 0.2 - k * s * 0.3, sg * s * 0.42 - s * 0.11, s * 1.35, s * 0.22);
+      c.fillStyle = '#05080e'; c.fillRect(s * 1.05 - k * s * 0.3, sg * s * 0.42 - s * 0.15, s * 0.16, s * 0.3);
+      poly(c, [-s * 0.7, sg * s * 0.2, -s * 0.2, sg * s * 0.2, -s * 0.2, sg * s * 0.62, -s * 0.7, sg * s * 0.62], '#2b3c55', '#05080e');   // 飛彈艙
+      for (let i = 0; i < 3; i++) circ(c, -s * 0.58 + i * s * 0.14, sg * s * 0.4, s * 0.045, A[2]);
+    }
+    poly(c, [s * 0.55, 0, s * 0.2, -s * 0.22, -s * 0.25, -s * 0.18, -s * 0.25, s * 0.18, s * 0.2, s * 0.22], '#1b2738', '#05080e');
+    glow(c, s * 0.3, 0, s * 0.4, v ? 'rgba(255,60,60,.9)' : 'rgba(255,180,70,.9)'); c.fillStyle = A[2]; c.fillRect(s * 0.22, -s * 0.12, s * 0.16, s * 0.24);
+    c.fillStyle = '#e8b020'; for (let i = 0; i < 4; i++) c.fillRect(-s * 0.8 + i * s * 0.1, -s * 0.03, s * 0.05, s * 0.06);
+  },
+  empress(c, s, t, k, mv, v) {
+    const A = v ? ['#d84a5a', '#4a0c18', '#ffe14a'] : ['#b060d8', '#3a1250', '#a8ff4a'];
+    const p = 1 + Math.sin(t * 2.2) * 0.04;
+    c.strokeStyle = A[1]; c.lineWidth = s * 0.1; c.lineCap = 'round';
+    for (let i = 0; i < 8; i++) { const sy = i % 2 ? 1 : -1, x = -0.2 + Math.floor(i / 2) * 0.22, w = mv ? Math.sin(t * 8 + i) * 0.12 : 0; c.beginPath(); c.moveTo(s * x, sy * s * 0.3); c.lineTo(s * (x + 0.2 + w), sy * s * 0.75); c.lineTo(s * (x + 0.05 + w), sy * s * 1.0); c.stroke(); }
+    ell(c, -s * 0.55, 0, s * 0.62 * p, s * 0.7 * p, metal(c, s, A[0], A[1]), '#12051a', 1.6);                 // 巨大卵腹
+    for (let i = 0; i < 7; i++) { const a = i * 0.9 + 0.3, x = -s * 0.55 + Math.cos(a) * s * 0.34 * (i % 2 ? 1 : 0.5), y = Math.sin(a) * s * 0.42; glow(c, x, y, s * 0.26, v ? 'rgba(255,220,70,.6)' : 'rgba(170,255,70,.6)'); circ(c, x, y, s * (0.09 + (i % 3) * 0.02), A[2], '#12051a'); }
+    ell(c, s * 0.2, 0, s * 0.42, s * 0.36, metal(c, s, A[0], A[1]), '#12051a', 1.4);
+    for (const sg of [-1, 1]) {                                                                        // 冠狀骨刺與大顎
+      for (let i = 0; i < 3; i++) poly(c, [s * 0.1, sg * s * (0.2 + i * 0.06), s * 0.3, sg * s * (0.24 + i * 0.05), -s * (0.1 + i * 0.16), sg * s * (0.7 + i * 0.1)], '#f4e8c8', '#6a5a3a');
+      c.save(); c.translate(s * 0.62, sg * s * 0.14); c.rotate(sg * (0.35 - k * 1.5)); poly(c, [0, -s * 0.07, s * 0.5, -sg * s * 0.1, 0, s * 0.07], '#f4e8c8', '#6a5a3a'); c.restore();
+    }
+    ell(c, s * 0.55, 0, s * 0.26, s * 0.24, '#5a2a6a', '#12051a');
+    for (const sg of [-1, 1]) for (let i = 0; i < 2; i++) circ(c, s * (0.6 + i * 0.1), sg * s * (0.1 + i * 0.05), s * 0.035, A[2]);
+  },
+  archon(c, s, t, k, mv, v) {
+    const col = v ? ['255,90,60', '#ffd0b0', '#ff5a3a'] : ['90,170,255', '#e6f6ff', '#5ab0ff'];
+    glow(c, 0, 0, s * 1.5, `rgba(${col[0]},.45)`);
+    c.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 9; i++) {                                                                      // 翻騰的能量外焰
+      const a = t * (1.2 + (i % 3) * 0.5) * (i % 2 ? 1 : -1) + i * 0.7, r = s * (0.55 + 0.12 * Math.sin(t * 5 + i * 2));
+      glow(c, Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5, s * 0.6, `rgba(${col[0]},.4)`);
+    }
+    c.strokeStyle = col[1]; c.lineWidth = 1.3;
+    let sd = Math.floor(t * 12) * 13 + 3; const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 6; i++) { let a = rnd() * TAU, r = s * 0.2; c.beginPath(); c.moveTo(Math.cos(a) * r, Math.sin(a) * r); for (let j = 0; j < 3; j++) { a += (rnd() - 0.5) * 1.4; r += s * 0.27; c.lineTo(Math.cos(a) * r, Math.sin(a) * r); } c.stroke(); }
+    c.globalCompositeOperation = 'source-over';
+    c.save(); c.rotate(-t * 0.7);                                                                      // 環繞的金色甲片
+    for (let i = 0; i < 4; i++) { c.rotate(TAU / 4); poly(c, [s * 0.95, -s * 0.3, s * 1.08, 0, s * 0.95, s * 0.3, s * 0.82, 0], '#ffe89a', '#7a5a1a'); }
+    c.restore();
+    circ(c, 0, 0, s * (0.42 + k * 0.15), col[1], col[2], 2);
+    circ(c, s * 0.12, -s * 0.12, s * 0.07, col[2]); circ(c, s * 0.12, s * 0.12, s * 0.07, col[2]);
+  },
+  fortress(c, s, t, k, mv, v) {
+    const A = v ? ['#a8a0b8', '#2a1c3a', '#c45cff'] : ['#9aa8b8', '#27323f', '#5ab0ff'], m = metal(c, s, A[0], A[1]);
+    const eg = v ? 'rgba(200,100,255,.9)' : 'rgba(90,190,255,.9)';
+    for (const y of [-0.6, 0, 0.6]) glow(c, -s * 1.0, s * y, s * 0.4, eg);                             // 三具引擎
+    poly(c, [s * 1.05, -s * 0.2, s * 1.05, s * 0.2, s * 0.6, s * 0.95, -s * 0.8, s * 0.95, -s * 1.0, s * 0.6, -s * 1.0, -s * 0.6, -s * 0.8, -s * 0.95, s * 0.6, -s * 0.95], m, '#05080e', 2);
+    poly(c, [s * 0.7, -s * 0.15, s * 0.7, s * 0.15, s * 0.3, s * 0.6, -s * 0.6, s * 0.6, -s * 0.6, -s * 0.6, s * 0.3, -s * 0.6], '#1b2738', '#05080e', 1.2);
+    c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 1; for (let i = -2; i <= 2; i++) { c.beginPath(); c.moveTo(-s * 0.55, i * s * 0.22); c.lineTo(s * 0.3, i * s * 0.22); c.stroke(); }
+    for (const [x, y] of [[0.3, -0.75], [0.3, 0.75], [-0.5, -0.75], [-0.5, 0.75]]) {                    // 四座砲塔
+      circ(c, s * x, s * y, s * 0.15, '#3a4a5e', '#05080e'); c.fillStyle = '#05080e'; c.fillRect(s * x, s * y - s * 0.04, s * (0.34 - k * 0.1), s * 0.08);
+    }
+    c.fillStyle = '#0a0f16'; c.fillRect(s * 0.2 - k * s * 0.1, -s * 0.09, s * 1.0, s * 0.18);                     // 主砲
+    glow(c, s * 1.2, 0, s * (0.3 + k * 0.6 + 0.08 * Math.sin(t * 6)), eg);
+    circ(c, -s * 0.15, 0, s * 0.2, A[2], '#05080e'); circ(c, -s * 0.15, 0, s * 0.08, '#fff');
+    c.fillStyle = '#e8b020'; c.fillRect(-s * 0.95, -s * 0.5, s * 0.05, s * 1.0);
+  },
+  devourer(c, s, t, k, mv, v) {
+    const A = v ? ['#4a6a4a', '#0c1c10', '#ff3b3b'] : ['#a04a3a', '#2c0c0c', '#ffb020'], m = metal(c, s, A[0], A[1]);
+    c.strokeStyle = '#12050a'; c.lineWidth = s * 0.2; c.lineCap = 'round';
+    for (let i = 0; i < 6; i++) { const sy = i % 2 ? 1 : -1, x = -0.7 + Math.floor(i / 2) * 0.45, w = mv ? Math.sin(t * 7 + i * 1.5) * 0.14 : 0; c.beginPath(); c.moveTo(s * x, sy * s * 0.45); c.lineTo(s * (x + 0.1 + w), sy * s * 0.98); c.stroke(); }
+    c.strokeStyle = A[1]; c.lineWidth = s * 0.3; c.beginPath(); c.moveTo(-s * 0.7, 0); c.quadraticCurveTo(-s * 1.1, Math.sin(t * 3) * s * 0.3, -s * 1.35, Math.sin(t * 3 + 1) * s * 0.2); c.stroke(); // 尾巴
+    for (let i = 3; i >= 0; i--) ell(c, -s * 0.75 + i * s * 0.33, 0, s * 0.42, s * (0.5 + i * 0.09), m, '#0a0306', 1.5);    // 層疊甲殼
+    for (let i = 0; i < 4; i++) for (const sg of [-1, 1]) poly(c, [-s * 0.7 + i * s * 0.33, sg * s * (0.4 + i * 0.08), -s * 0.55 + i * s * 0.33, sg * s * (0.44 + i * 0.08), -s * 0.8 + i * s * 0.33, sg * s * (0.75 + i * 0.1)], '#f4e8c8', '#6a5a3a'); // 背刺
+    ell(c, s * 0.55, 0, s * 0.42, s * 0.5, metal(c, s, A[0], A[1]), '#0a0306', 1.5);
+    for (const sg of [-1, 1]) {                                                                        // 巨顎
+      c.save(); c.translate(s * 0.75, sg * s * 0.3); c.rotate(sg * (0.2 - k * 1.6));
+      poly(c, [0, -s * 0.12, s * 0.5, -sg * s * 0.05, s * 0.62, -sg * s * 0.3, s * 0.4, -sg * s * 0.12, 0, s * 0.12], '#f4e8c8', '#6a5a3a', 1.2);
+      c.restore();
+    }
+    for (let i = 0; i < 3; i++) for (const sg of [-1, 1]) { glow(c, s * (0.55 + i * 0.1), sg * s * (0.3 - i * 0.08), s * 0.15, v ? 'rgba(255,60,60,.9)' : 'rgba(255,170,40,.9)'); circ(c, s * (0.55 + i * 0.1), sg * s * (0.3 - i * 0.08), s * 0.04, A[2]); }
+  },
 };
 
-export function drawShape(c, type, s, t = 0, k = 0, mv = false) { (SHAPES[type] || SHAPES.trooper)(c, s, t, k, mv); }
+export function drawShape(c, type, s, t = 0, k = 0, mv = false, v = 0) { (SHAPES[type] || SHAPES.trooper)(c, s, t, k, mv, v); }
 
 const TEAM_RING = ['#39ff7a', '#ff3b3b'];
+const AIR = new Set(['dread', 'ark', 'sentinel', 'prism', 'wyrm', 'fortress', 'archon']);
 export function drawUnit(c, u, t, showBar = true) {
-  const s = u.r, air = u.type === 'dread' || u.type === 'ark' || u.type === 'sentinel';
+  const s = u.r, air = AIR.has(u.type);
   c.save();
   c.translate(u.x, u.y);
   // 影子 + 隊伍圈（像選取圈）
@@ -237,7 +387,7 @@ export function drawUnit(c, u, t, showBar = true) {
   c.save();
   if (air) c.translate(0, Math.sin(t * 2 + u.id) * 1.5 - 3);
   c.rotate(u.face);
-  drawShape(c, u.type, s, t + u.id * 0.7, Math.max(0, u.atkAnim / 0.15), u.moving);
+  drawShape(c, u.type, s, t + u.id * 0.7, Math.max(0, u.atkAnim / 0.15), u.moving, u.variant || 0);
   c.restore();
   if (u.flash > 0) { c.globalCompositeOperation = 'lighter'; circ(c, 0, 0, s, `rgba(255,255,255,${u.flash * 3})`); c.globalCompositeOperation = 'source-over'; }
   if (u.maxSh > 0 && u.sh > 0 && u.lastHit !== undefined && t - u.shT < 0.3) { /* 預留 */ }
@@ -250,7 +400,8 @@ export function drawUnit(c, u, t, showBar = true) {
   if (u.star > 1) { c.fillStyle = u.star === 3 ? '#ffd23a' : '#cfe6ff'; c.font = `900 ${u.star === 3 ? 10 : 9}px sans-serif`; c.textAlign = 'center'; c.fillText('★'.repeat(u.star), 0, s + 11); }
   // 血條 / 護盾條
   if (showBar && u.maxHp) {
-    const w = Math.max(16, s * 2.1), y = -s - (u.maxSh ? 11 : 8), seg = u.boss ? 4 : 3;
+    const w = Math.max(16, s * 2.1), y = -s - (u.maxSh ? 11 : 8) - (u.boss ? 4 : 0), seg = u.boss ? 5 : 3;
+    if (u.boss) { c.font = '900 10px "Noto Sans TC", sans-serif'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.85)'; const nm = (u.variant ? '狂化·' : '') + u.def.name; c.strokeText(nm, 0, y - 5); c.fillStyle = '#ffb020'; c.fillText(nm, 0, y - 5); }
     c.fillStyle = 'rgba(0,0,0,.75)'; c.fillRect(-w / 2 - 1, y - 1, w + 2, (u.maxSh ? seg * 2 + 1 : seg) + 2);
     if (u.maxSh) { c.fillStyle = '#4ad8ff'; c.fillRect(-w / 2, y, w * Math.max(0, u.sh / u.maxSh), seg); }
     const hy = u.maxSh ? y + seg + 1 : y, f = Math.max(0, u.hp / u.maxHp);
@@ -344,9 +495,10 @@ export class FX {
         else if (a === 'flame') { for (let i = 0; i < 6; i++) { const aa = ang + (Math.random() - 0.5) * 0.7, v = 120 + Math.random() * 90; this.add({ k: 'fl', x: mx, y: my, vx: Math.cos(aa) * v, vy: Math.sin(aa) * v, life: 0.25 + Math.random() * 0.2 }); } }
         else if (a === 'melee' || a === 'cleave') { this.add({ k: 'slash', x: e.x2, y: e.y2, ang, life: 0.16, r: a === 'cleave' ? 30 : 11, col: e.team === 0 ? '#eaffff' : '#ffe0d0' }); }
         else { // 飛行彈：bolt / acid / spine / shell / spawn
-          const col = { bolt: '#7fd8ff', acid: '#a8ff4a', spine: '#f0e2c0', shell: '#ffb347', spawn: '#c8ff6a' }[a] || '#fff';
-          this.add({ k: 'pr', x1: mx, y1: my, x2: e.x2, y2: e.y2, life: a === 'shell' ? 0.22 : 0.13, col, a });
+          const col = { bolt: '#7fd8ff', acid: '#a8ff4a', spine: '#f0e2c0', shell: '#ffb347', spawn: '#c8ff6a', missile: '#ff8a4a' }[a] || '#fff';
+          this.add({ k: 'pr', x1: mx, y1: my, x2: e.x2, y2: e.y2, life: a === 'shell' ? 0.22 : a === 'missile' ? 0.2 + Math.random() * 0.12 : 0.13, col, a, bend: (Math.random() - 0.5) * 50 });
         }
+      } else if (e.k === 'spikes') { this.add({ k: 'spikes', x1: e.x1, y1: e.y1, x2: e.x2, y2: e.y2, life: 0.45 });
       } else if (e.k === 'boom') {
         const col = { fire: ['#fff2b0', '#ff8a2a', '#c8301a'], acid: ['#f0ffb0', '#8fe83a', '#3a7a10'], nova: ['#ffffff', '#ffcf6a', '#ff7a2a'] }[e.c];
         this.add({ k: 'boom', x: e.x, y: e.y, r: e.r, life: e.big ? 0.55 : 0.4, col });
@@ -383,7 +535,7 @@ export class FX {
         const ang = Math.atan2(p.y2 - p.y1, p.x2 - p.x1), px = -Math.sin(ang), py = Math.cos(ang), o = (f * 2 - 1) * 75;
         for (const sg of [-1, 1]) { const ex = p.x2 + px * o * sg, ey = p.y2 + py * o * sg; c.globalAlpha = 0.3; c.strokeStyle = '#ff7a3a'; c.lineWidth = 7; c.beginPath(); c.moveTo(p.x1, p.y1); c.lineTo(ex, ey); c.stroke(); c.globalAlpha = 1; c.strokeStyle = '#ffe6c0'; c.lineWidth = 1.8; c.beginPath(); c.moveTo(p.x1, p.y1); c.lineTo(ex, ey); c.stroke(); glow(c, ex, ey, 12, 'rgba(255,150,60,.9)'); }
       } else if (p.k === 'pr') {
-        const x = p.x1 + (p.x2 - p.x1) * f, y = p.y1 + (p.y2 - p.y1) * f - (p.a === 'shell' ? Math.sin(f * Math.PI) * 18 : 0);
+        const arc = Math.sin(f * Math.PI), x = p.x1 + (p.x2 - p.x1) * f + (p.a === 'missile' ? arc * p.bend : 0), y = p.y1 + (p.y2 - p.y1) * f - (p.a === 'shell' ? arc * 18 : 0);
         c.globalAlpha = 1; glow(c, x, y, p.a === 'shell' ? 9 : 7, p.col); circ(c, x, y, p.a === 'shell' ? 2.6 : 1.8, '#fff');
         c.strokeStyle = p.col; c.globalAlpha = 0.6; c.lineWidth = 1.5; c.beginPath(); c.moveTo(x, y); c.lineTo(x - (p.x2 - p.x1) * 0.12, y - (p.y2 - p.y1) * 0.12); c.stroke();
       } else if (p.k === 'sp') { c.globalAlpha = a; c.fillStyle = p.col; c.fillRect(p.x - 1, p.y - 1, 2, 2); }
@@ -398,6 +550,14 @@ export class FX {
       else if (p.k === 'plus') { c.globalAlpha = a; c.fillStyle = '#6dffb0'; const y = p.y - 8 - f * 14; c.fillRect(p.x - 4, y - 1, 8, 2); c.fillRect(p.x - 1, y - 4, 2, 8); }
     }
     c.globalCompositeOperation = 'source-over';
+    for (const p of this.p) if (p.k === 'spikes') {   // 一整排從地面竄出的骨棘
+      const f = p.t / p.life, L = Math.hypot(p.x2 - p.x1, p.y2 - p.y1), n = Math.floor(L / 13), nx = (p.x2 - p.x1) / L, ny = (p.y2 - p.y1) / L;
+      for (let i = 1; i <= n; i++) {
+        const lf = f * 2.2 - i / n; if (lf < 0 || lf > 1.2) continue;
+        const h = Math.sin(Math.min(1, lf / 1.2) * Math.PI) * 11, x = p.x1 + nx * i * 13, y = p.y1 + ny * i * 13;
+        c.globalAlpha = 1; poly(c, [x - 3, y + 2, x + 3, y + 2, x + nx * 3, y - h], '#f0e2c0', '#6a5a3a');
+      }
+    }
     for (const p of this.p) if (p.k === 'txt') {
       const f = p.t / p.life; c.globalAlpha = Math.min(1, (1 - f) * 2.5);
       c.font = '900 11px "Noto Sans TC", sans-serif'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.85)';

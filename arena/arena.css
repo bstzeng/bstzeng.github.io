@@ -14,7 +14,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .top { flex: none; display: flex; align-items: center; gap: 8px; padding: max(6px, env(safe-area-inset-top)) 8px 6px; background: linear-gradient(#13233a, #0a1322); border-bottom: 1px solid var(--line); box-shadow: 0 0 14px rgba(60,150,255,.25); z-index: 3; }
 .hbtn { flex: none; width: 34px; height: 34px; display: grid; place-items: center; color: var(--cy); text-decoration: none; font-weight: 900; border: 1px solid var(--line); background: #0a1626; clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
 .stage { flex: 1; min-width: 0; line-height: 1.15; }
-.stage b { display: block; font-family: var(--num); font-size: .95rem; letter-spacing: .08em; color: #eaf6ff; text-shadow: 0 0 8px rgba(110,210,255,.7); }
+.stage b { display: block; white-space: nowrap; font-family: var(--num); font-size: .95rem; letter-spacing: .08em; color: #eaf6ff; text-shadow: 0 0 8px rgba(110,210,255,.7); }
 .stage small { display: block; font-size: .68rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stage small.boss { color: #ffb020; }
 .stat { flex: none; display: flex; align-items: center; gap: 5px; padding: 5px 9px; border: 1px solid #23415f; background: #070e19; font-family: var(--num); font-size: .82rem; font-weight: 700; }

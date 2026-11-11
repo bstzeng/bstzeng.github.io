@@ -77,6 +77,13 @@ function placeAt(u, cell) {
   refresh();
 }
 function toBench(u) { u.cell = null; refresh(); }
+// 一鍵佈陣：全部收回後，從最值錢的單位開始往人口上限內塞
+function autoDeploy() {
+  for (const u of save.roster) u.cell = null;
+  const val = (u) => UNITS[u.type].cost * Math.pow(3, u.star - 1) / UNITS[u.type].sup;
+  for (const u of [...save.roster].sort((a, b) => val(b) - val(a))) autoPlace(u);
+  sel = null; refresh(); toast('已自動佈陣');
+}
 
 function buy(type) {
   const d = UNITS[type];
@@ -110,9 +117,9 @@ function refresh() {
   $('gold').textContent = save.gold;
   $('sup').textContent = `${used}/${cap}`;
   $('supBox').classList.toggle('full', used >= cap);
-  $('stageNo').textContent = `STAGE ${String(save.stage).padStart(2, '0')} / ${MAX_STAGE}`;
+  $('stageNo').textContent = `STAGE ${String(save.stage).padStart(2, "0")}/${MAX_STAGE}`;
   const sub = $('stageSub');
-  sub.textContent = (enemy.boss ? '⚠ 首領關 · ' : '') + `敵軍：${FACTIONS[enemy.fac].name} × ${enemy.list.length}`;
+  sub.textContent = enemy.boss ? `⚠ 首領：${enemy.list[0].variant ? '狂化·' : ''}${UNITS[enemy.list[0].type].name}` : `敵軍：${FACTIONS[enemy.fac].name} × ${enemy.list.length}`;
   sub.classList.toggle('boss', enemy.boss);
   $('bGo').disabled = used === 0;
   if (sel && sel.u && !save.roster.includes(sel.u)) sel = null;
@@ -121,9 +128,9 @@ function refresh() {
 
 function statLine(d, star, boss) {
   const m = STAR_MUL[star - 1];
-  const parts = [`HP ${Math.round(d.hp * m * (boss ? 2.2 : 1))}`];
-  if (d.sh) parts.push(`盾 ${Math.round(d.sh * m * (boss ? 2.2 : 1))}`);
-  if (d.atk !== 'heal') parts.push(`攻 ${Math.round(d.dmg * m * (boss ? 1.4 : 1))}`); else parts.push(`治療 ${Math.round(d.dmg * m)}`);
+  const parts = [`HP ${Math.round(d.hp * m)}`];
+  if (d.sh) parts.push(`盾 ${Math.round(d.sh * m)}`);
+  if (d.atk !== 'heal') parts.push(`攻 ${Math.round(d.dmg * m)}`); else parts.push(`治療 ${Math.round(d.dmg * m)}`);
   parts.push(d.range > 50 ? `射程 ${d.range}` : '近戰', `甲 ${d.armor + star - 1}`);
   return parts.join(' · ');
 }
@@ -165,7 +172,7 @@ function renderPane() {
     p.innerHTML = bench.length ? bench.map((u) => tileHTML(UNITS[u.type], { star: u.star, cls: sel && sel.u === u ? 'sel' : '', attr: `data-uid="${u.uid}"` })).join('')
       : '<p class="empty">待命區是空的。到「兵營」買兵，或把場上的單位拖下來。</p>';
   } else if (tab === 'shop') {
-    const list = Object.values(UNITS).filter((d) => d.fac === save.faction && d.tier < 9);
+    const list = Object.values(UNITS).filter((d) => d.fac === save.faction && d.tier < 9).sort((a, b) => a.tier - b.tier || a.cost - b.cost);
     p.innerHTML = list.map((d) => {
       const ok = L.unlocked(d, save.stage);
       return tileHTML(d, { cost: d.cost, q: true, cls: (ok ? '' : 'lock ') + (save.gold < d.cost ? 'poor' : ''), attr: `data-buy="${d.id}"`, label: ok ? d.name : `第${TIER_STAGE[d.tier]}關解鎖` });
@@ -239,7 +246,7 @@ function enterPrep() {
   enemy = L.genEnemy(save.stage);
   if (bgStage !== Math.ceil(save.stage / 10)) { bg = makeBackground(save.stage); bgStage = Math.ceil(save.stage / 10); }
   fx.clear(); sel = null;
-  $('cmd').classList.remove('battle'); $('bGo').hidden = false; $('bSpd').hidden = true;
+  $('cmd').classList.remove('battle'); $('bGo').hidden = false; $('bAuto').hidden = false; $('bSpd').hidden = true;
   for (const id of ['ovStart', 'ovEnd', 'ovMenu']) $(id).hidden = true;
   resize(); refresh();
   if (save.pending) showWin();
@@ -248,9 +255,10 @@ $('bGo').addEventListener('click', () => {
   if (phase !== 'prep' || L.usedSupply(save) === 0) return;
   S = L.createBattle(save.roster, save.ups, save.stage, enemy);
   phase = 'battle'; sel = null; drag = null; ghost.hidden = true; fx.clear();
-  $('cmd').classList.add('battle'); $('bGo').hidden = true; $('bSpd').hidden = false;
+  $('cmd').classList.add('battle'); $('bGo').hidden = true; $('bAuto').hidden = true; $('bSpd').hidden = false;
   resize(); renderInfo();
 });
+$('bAuto').addEventListener('click', () => { if (phase === 'prep') autoDeploy(); });
 $('bSpd').addEventListener('click', () => { speed = speed % 3 + 1; $('bSpd').textContent = `▶ x${speed}`; });
 
 function finishBattle() {

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="theme-color" content="#05080e">
   <title>星域戰陣 // NEON LAB</title>
-  <meta name="description" content="科幻自走棋：選擇陣營、在人口上限內擺出陣型，部隊自動向前衝鋒並施放技能。闖過 50 關，用金幣擴軍、用永久升級強化全軍。">
+  <meta name="description" content="科幻自走棋：選擇陣營、在人口上限內擺出陣型，部隊自動向前衝鋒並施放技能。闖過 100 關，用金幣擴軍、用永久升級強化全軍。">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
@@ -24,6 +24,7 @@
     <main class="field" id="field">
       <canvas id="cv" aria-label="戰場"></canvas>
       <button class="go" id="bGo">⚔ 開 戰</button>
+      <button class="spd" id="bAuto">⚙ 自動佈陣</button>
       <button class="spd" id="bSpd" hidden>▶ x1</button>
       <p class="toast" id="toast" role="status" aria-live="polite"></p>
     </main>
@@ -53,7 +54,8 @@
     <div class="box">
       <h2>選單</h2>
       <ul class="howto">
-        <li>拖曳單位到下方格子擺陣；拖出戰場就收回待命區</li>
+        <li>戰鬥完全自動，不需要任何操作；只有開戰前要決定陣型</li>
+        <li>懶得擺就按「自動佈陣」；想微調再拖曳單位，拖出戰場就收回待命區</li>
         <li>每個單位佔用人口，上場總人口不能超過上限</li>
         <li>開戰後全軍自動向前衝鋒、自動放技能</li>
         <li>三個相同單位會自動合成升星（★ → ★★ → ★★★）</li>
