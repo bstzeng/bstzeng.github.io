@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#1e2a4a">
+  <title>桜町散步 // NEON LAB</title>
+  <meta name="description" content="3D 日式街道漫遊：上百棟町家、商店與住宅，可以逛超商、泡溫泉、搭電車、到神社參拜，和街上的居民聊天。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@900&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="town.css">
+  <script type="importmap">
+    { "imports": { "three": "../lib/three.module.min.js", "three/addons/": "../lib/jsm/" } }
+  </script>
+</head>
+<body>
+  <canvas id="scene" aria-label="3D 日式街道"></canvas>
+
+  <header class="hud">
+    <a class="pill" href="../" aria-label="回首頁">←</a>
+    <p class="place" id="place"></p>
+    <button class="pill" id="bTime" aria-label="切換時間">☀</button>
+    <button class="pill" id="bView" aria-label="切換視角">👁</button>
+    <button class="pill" id="bSnd" aria-label="音效">🔊</button>
+  </header>
+
+  <canvas id="mini" class="mini" aria-label="小地圖（點擊放大）"></canvas>
+  <div class="stamps" id="stamps" aria-label="御朱印帳"></div>
+
+  <p class="toast" id="toast" role="status" aria-live="polite"></p>
+  <div class="dlg" id="dlg"><b id="dlgName"></b><p id="dlgText"></p></div>
+  <div class="joy" id="joy" aria-hidden="true"><i></i></div>
+  <button class="run" id="run" aria-label="跑步">🏃</button>
+  <button class="act" id="act" hidden>對話</button>
+
+  <div class="overlay map" id="ovMap" hidden>
+    <div><canvas id="big"></canvas><p>🔴 你的位置　🟡 居民　🟩 電車　・　點任意處關閉</p></div>
+  </div>
+
+  <div class="overlay" id="ovStart">
+    <div class="card">
+      <p class="tag">TOPIC_05 // SAKURAMACHI</p>
+      <h1>桜町散步</h1>
+      <p class="lead">一座有 <b id="count">100+</b> 棟建築的日式小鎮。逛超商、泡溫泉、搭電車、到神社參拜，和街上的居民聊聊天。</p>
+      <ul class="howto">
+        <li><b>電腦</b>　WASD 移動・Shift 跑步・拖曳滑鼠轉視角・滾輪縮放・E 互動・M 地圖</li>
+        <li><b>手機</b>　左半邊拖曳移動・右半邊拖曳轉視角・右下按鈕互動</li>
+        <li>右上角可切換 <b>白天／黃昏／夜晚</b> 與第一人稱視角</li>
+        <li>集滿 6 枚御朱印：⛩ ♨ 🏪 🚃 🗼 🐕</li>
+      </ul>
+      <p class="loading" id="loading">正在蓋房子…</p>
+      <button class="start" id="bStart" hidden>出發散步</button>
+    </div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
