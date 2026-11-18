@@ -22,16 +22,50 @@ function persist() { try { localStorage.setItem(STORE, JSON.stringify(save)); } 
 /* ================= 聲音 ================= */
 const NOTE_HZ = 523.25;
 let ctx = null, master = null;
+// iPhone / iPad 開靜音模式時，網頁音效預設會被靜音。
+// 改成「媒體播放」類型，並在第一次觸碰時播一段無聲音檔，讓聲音照常出來。
+let silentEl = null;
+function silentWavUrl() {
+  const n = 4410, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVE"); w(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 44100, true); v.setUint32(28, 88200, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, "data"); v.setUint32(40, n * 2, true);
+  return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+}
+function unlockAudio() {
+  try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch {}
+  if (!silentEl) {
+    silentEl = document.createElement("audio");
+    silentEl.src = silentWavUrl();
+    silentEl.loop = true;
+    silentEl.setAttribute("playsinline", "");
+  }
+  if (silentEl.paused) silentEl.play().catch(() => {});
+  ensureAudio();
+  // 播一個極短的無聲緩衝，確保 iOS 真的啟動音訊
+  try {
+    const b = ctx.createBuffer(1, 1, 22050), s = ctx.createBufferSource();
+    s.buffer = b; s.connect(ctx.destination); s.start(0);
+  } catch {}
+}
 function ensureAudio() {
   if (!ctx) {
+    try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch {}
     const AC = window.AudioContext || window.webkitAudioContext;
-    ctx = new AC({ latencyHint: "interactive" });
+    try { ctx = new AC({ latencyHint: "interactive" }); } catch { ctx = new AC(); }
     master = ctx.createGain();
     master.gain.value = 0.9;
     master.connect(ctx.destination);
   }
-  if (ctx.state !== "running") ctx.resume();
+  if (ctx.state !== "running") ctx.resume().catch(() => {});
 }
+for (const ev of ["pointerdown", "touchend", "keydown"])
+  document.addEventListener(ev, unlockAudio, { capture: true, passive: true });
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && ctx && ctx.state !== "running") ctx.resume().catch(() => {});
+});
 function click(t, accent, dest, vol = 1) {
   const o = ctx.createOscillator(), g = ctx.createGain();
   o.type = "sine";
@@ -764,3 +798,9 @@ window.addEventListener("resize", () => {
 });
 
 show("home");
+
+$("#bTestSnd").addEventListener("click", () => {
+  unlockAudio();
+  const t = ctx.currentTime + 0.05;
+  click(t, true, master); tone(t + 0.4, 0.6, master); click(t + 1.1, false, master);
+});
