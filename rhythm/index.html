@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#1b1033">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>節奏小達人 // NEON LAB</title>
+  <meta name="description" content="給小朋友的節奏練習遊戲：鸚鵡學說話、青蛙跳荷葉、猜猜哪一張。練習四分、八分、二分、全音符、附點與休止符，長音要按住才算數。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="rhythm.css">
+</head>
+<body>
+  <!-- 首頁 -->
+  <section class="screen" id="home">
+    <header class="bar">
+      <a class="chip" href="../">← 首頁</a>
+      <span></span>
+      <button class="icon bSet" aria-label="家長設定">⚙</button>
+    </header>
+    <div class="home-box">
+      <p class="notes-deco" aria-hidden="true">♪ ♩ ♫ ♬</p>
+      <h1 class="title">節奏小達人</h1>
+      <p class="sub">跟著拍子，一起拍拍拍！</p>
+      <div class="modes">
+        <button class="mode m-a" data-mode="A"><span class="emo">🦜</span><b>鸚鵡學說話</b><small>先聽，再照著按</small></button>
+        <button class="mode m-b" data-mode="B"><span class="emo">🐸</span><b>青蛙跳荷葉</b><small>看樂譜，跟著按</small></button>
+        <button class="mode m-c" data-mode="C"><span class="emo">🐰</span><b>猜猜哪一張</b><small>聽節奏，找樂譜</small></button>
+      </div>
+      <p class="parent">給家長：每天玩 5～10 分鐘就好。玩完可以請孩子只用一個琴鍵，把剛剛的節奏彈出來。
+        速度、長音判定、裝置延遲校正都在右上角 ⚙。</p>
+    </div>
+  </section>
+
+  <!-- 選關 -->
+  <section class="screen" id="levels" hidden>
+    <header class="bar">
+      <button class="chip" id="bLvBack">← 返回</button>
+      <h2 id="lvTitle"></h2>
+      <button class="icon bSet" aria-label="家長設定">⚙</button>
+    </header>
+    <div class="lv-grid" id="lvGrid"></div>
+  </section>
+
+  <!-- 遊戲 -->
+  <section class="screen" id="play" hidden>
+    <header class="bar">
+      <button class="chip" id="bPlayBack">← 選關</button>
+      <h2 id="pTitle"></h2>
+      <button class="icon" id="bRestart" aria-label="重來">↺</button>
+    </header>
+    <div class="beat-box" id="beatBox">
+      <span class="who" id="who"></span>
+      <span class="nums" id="nums"></span>
+    </div>
+    <div class="stage" id="stage">
+      <svg id="score" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid meet"></svg>
+      <p class="toast" id="toast" role="status" aria-live="polite"></p>
+    </div>
+    <div class="cbox" id="cBox" hidden>
+      <div class="c-head">
+        <span class="bunny" id="bunny">🐰</span>
+        <div><p id="cProg"></p><p class="c-hint" id="cHint"></p></div>
+        <button class="replay" id="bReplay">🔊 再聽一次</button>
+      </div>
+      <div class="cards" id="cards"></div>
+    </div>
+    <button class="bigpad" id="pad" aria-label="按住這裡"><span>按住 👇</span></button>
+  </section>
+
+  <!-- 開始說明 -->
+  <div class="overlay" id="intro" hidden>
+    <div class="panel">
+      <div class="big-emo" id="inEmo"></div>
+      <h3 id="inTitle"></h3>
+      <p class="desc" id="inDesc"></p>
+      <p class="how" id="inHow"></p>
+      <div class="tempo">
+        <span>速度 ♩ = <b id="inBpm">60</b></span>
+        <button id="bTempoDown" aria-label="慢一點">🐢</button>
+        <button id="bTempoUp" aria-label="快一點">🐇</button>
+      </div>
+      <div class="row">
+        <button class="btn ghost" id="bDemo">🔊 先聽一次</button>
+        <button class="btn go" id="bGo">開始！</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 結果 -->
+  <div class="overlay bottom" id="result" hidden>
+    <div class="panel result">
+      <div class="r-stars" id="rStars"></div>
+      <p class="r-msg" id="rMsg"></p>
+      <div class="r-stats" id="rStats"></div>
+      <p class="r-tip" id="rTip"></p>
+      <div class="row wrap">
+        <button class="btn ghost" id="bAgain">↺ 同一題再試</button>
+        <button class="btn ghost" id="bNew">🎲 換新題目</button>
+        <button class="btn go" id="bNext">下一關 →</button>
+        <button class="btn ghost" id="bToLevels">☰ 選關</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 家長設定 -->
+  <div class="overlay" id="settings" hidden>
+    <div class="panel settings">
+      <h3>⚙ 家長設定</h3>
+      <label class="set-row">
+        <span>速度 ♩ = <b id="sBpmV">60</b></span>
+        <input type="range" id="sBpm" min="40" max="120" step="2" value="60">
+      </label>
+      <label class="set-row check">
+        <input type="checkbox" id="sMetro"> <span>遊戲中播放節拍器（滴答聲）</span>
+      </label>
+      <div class="set-row">
+        <span>長音判定（可以提早放開多少）</span>
+        <div class="seg">
+          <label><input type="radio" name="strict" value="easy"><span>寬鬆</span></label>
+          <label><input type="radio" name="strict" value="normal"><span>標準</span></label>
+          <label><input type="radio" name="strict" value="hard"><span>嚴格</span></label>
+        </div>
+      </div>
+      <label class="set-row check">
+        <input type="checkbox" id="sShowA"> <span>鸚鵡模式先顯示樂譜（比較簡單）</span>
+      </label>
+      <div class="set-row">
+        <span>裝置延遲補償：<b id="sLatV">0</b> ms</span>
+        <input type="range" id="sLat" min="-50" max="250" step="5" value="0">
+        <p class="note">如果明明按得準卻常被判「太晚」，按「自動校正」跟著嗶聲按 16 下。</p>
+        <button class="btn ghost small" id="bCal">自動校正</button>
+        <button class="cal-tap" id="calTap" hidden>跟著嗶聲按這裡</button>
+        <p class="note" id="calMsg"></p>
+      </div>
+      <div class="row">
+        <button class="btn ghost small" id="bReset">清除星星紀錄</button>
+        <button class="btn go" id="bSetClose">好了</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
