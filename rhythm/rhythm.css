@@ -195,3 +195,4 @@ rect.pad.r-bad { stroke: var(--red); stroke-dasharray: none; }
 @media (orientation: portrait) {
   .cards { grid-template-columns: 1fr; max-width: 640px; width: 100%; margin: 0 auto; }
 }
+.snd-note { color: #8a7fb0; font-size: .82rem; margin: -6px 0 12px; }
