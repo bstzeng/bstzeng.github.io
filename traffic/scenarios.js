@@ -693,7 +693,7 @@ add({
 });
 
 add({
-  id: "roundabout", group: "市區道路", name: "單車道圓環",
+  id: "roundabout", group: "圓環", name: "單車道圓環（四叉）",
   desc: "進圓環要讓環內的車先走，找到空隙才能進去。某一個方向車流特別大時，其他入口可能一直等不到空隙。",
   build() {
     const net = new Net();
@@ -737,6 +737,7 @@ add({
       net.link(segB[i], 0, outs[j], 0);
       segB[i].routeFn = (v) => (v.exitArm === j ? outs[j] : segA[j]);
     });
+    net.deco.push({ type: "island", cx: 0, cy: 0, r: R - LW / 2 - 0.6 });
     net.finalize();
     return {
       net, main: [], focus: { x: 0, y: 0, w: 115 },
@@ -1254,6 +1255,423 @@ add({
   },
 });
 
+
+/* ================= 圓環產生器 ================= */
+const D2R = Math.PI / 180;
+const ringPt = (cx, cy, r, deg) => ({ x: cx + r * Math.cos(deg * D2R), y: cy + r * Math.sin(deg * D2R), h: Math.atan2(-Math.cos(deg * D2R), Math.sin(deg * D2R)) });
+function arcPath(cx, cy, r0, a0, a1, r1 = r0) {
+  const n = Math.max(3, Math.ceil(Math.abs(a0 - a1) * D2R * Math.max(r0, r1) / 2.5));
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, a = (a0 + (a1 - a0) * t) * D2R, r = r0 + (r1 - r0) * (t * t * (3 - 2 * t));
+    pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+  }
+  return new Path(pts);
+}
+const DIRN = (a) => { a = ((a % 360) + 360) % 360; return ["東", "東南", "南", "西南", "西", "西北", "北", "東北"][Math.round(a / 45) % 8]; };
+
+/** 一條路口支線：進圓環的路（終點接在 aN）與出圓環的路（起點在 aE） */
+function rbLeg(net, o) {
+  const { id, cx, cy, Rin, Rout, a, aN, aE, inL = 1, outL = 1, inR, outR, arm = 220, m = 1.2, vmax = 50, name } = o;
+  const d = [Math.cos(a * D2R), Math.sin(a * D2R)], u = [-d[0], -d[1]];
+  const rnU = [-u[1], u[0]], rnD = [-d[1], d[0]];
+  const gap = 12 + Rin * 0.25;
+  let inb = null, outb = null;
+  if (inL > 0) {
+    const P = ringPt(cx, cy, inR, aN);
+    const fx = cx + d[0] * arm + rnU[0] * m, fy = cy + d[1] * arm + rnU[1] * m;
+    const straight = arm - Rout - gap;
+    const pen = new Pen(fx, fy, Math.atan2(u[1], u[0]));
+    if (straight > 1) pen.line(straight);
+    inb = net.road(id + "in", pen.bezierTo(P.x, P.y, P.h, 0.45, 0.5).path(), inL, { vmax, kind: "urban", name: name + "進入" });
+  }
+  if (outL > 0) {
+    const Q = ringPt(cx, cy, outR, aE);
+    const nx = cx + d[0] * (Rout + gap) + rnD[0] * m, ny = cy + d[1] * (Rout + gap) + rnD[1] * m;
+    const pen = new Pen(Q.x, Q.y, Q.h).bezierTo(nx, ny, Math.atan2(d[1], d[0]), 0.5, 0.45);
+    const straight = arm - Rout - gap;
+    if (straight > 1) pen.line(straight);
+    outb = net.road(id + "out", pen.path(), outL, { vmax, kind: "urban", name: "往" + name });
+  }
+  return { inb, outb, d, a };
+}
+
+/**
+ * 圓環：legs 依行駛順序（角度遞減）排列
+ * lanes: 環道車道數；turbo: 荷蘭渦輪式（內外圈分開、螺旋）
+ */
+function rbt(net, o) {
+  const { id = "rb", cx = 0, cy = 0, Rin = 22, lanes = 1, delta = 24, vmax = 30, yieldEntry = true, turbo = false, bypass = [], armVmax = 50, hints = false } = o;
+  const Rout = Rin + lanes * LW, n = o.legs.length;
+  const A = []; let prev = Infinity;
+  for (const L of o.legs) { let a = L.a; while (a >= prev) a -= 360; A.push(a); prev = a; }
+  const R = { id, cx, cy, Rin, Rout, lanes, legs: [], segA: [], segB: [], inner: null };
+  const ringOpt = { vmax, kind: "urban", name: o.ringName || "圓環" };
+  for (let i = 0; i < n; i++) {
+    const aE = A[i] + delta, aN = A[i] - delta, aE2 = (i + 1 < n ? A[i + 1] : A[0] - 360) + delta;
+    if (!turbo) {
+      R.segA[i] = net.road(`${id}A${i}`, arcPath(cx, cy, Rin, aE, aN), lanes, ringOpt);
+      R.segB[i] = net.road(`${id}B${i}`, arcPath(cx, cy, Rin, aN, aE2), lanes, ringOpt);
+    } else {
+      const r0 = Rin + LW / 2, r1 = Rin + 1.5 * LW;
+      R.segA[i] = [net.road(`${id}A0_${i}`, arcPath(cx, cy, r0, aE, aN), 1, { ...ringOpt, center: true }),
+                   net.road(`${id}A1_${i}`, arcPath(cx, cy, r0, aE, aN, r1), 1, { ...ringOpt, center: true })];
+      R.segB[i] = [net.road(`${id}B0_${i}`, arcPath(cx, cy, r0, aN, aE2), 1, { ...ringOpt, center: true }),
+                   net.road(`${id}B1_${i}`, arcPath(cx, cy, r1, aN, aE2), 1, { ...ringOpt, center: true })];
+    }
+    const L = o.legs[i];
+    const inL = L.inL ?? (L.noIn ? 0 : 1), outL = L.outL ?? (L.noOut ? 0 : 1);
+    const k0 = turbo ? 0 : lanes - Math.min(inL, lanes), e0 = turbo ? 1 : lanes - Math.min(outL, lanes);
+    const leg = rbLeg(net, { id: `${id}${L.k}`, cx, cy, Rin, Rout, a: L.a, aN, aE, inL, outL, inR: Rin + k0 * LW, outR: Rin + e0 * LW, arm: L.arm ?? 220, m: L.m ?? 1.2, vmax: armVmax, name: L.name || DIRN(L.a) });
+    leg.k0 = k0; leg.e0 = e0; leg.inL = inL; leg.outL = outL; leg.name = L.name || DIRN(L.a);
+    if (leg.inb) {
+      leg.inb.yieldEnd = yieldEntry;
+      if (L.flow != null) leg.inb.src = { flow: L.flow, name: leg.name + "邊進來" };
+      if (bypass.includes(i)) leg.inb.aux(inL, leg.inb.len - 70, leg.inb.len);
+    }
+    if (leg.outb) { leg.outb.rb = id; leg.outb.rbLeg = i; }
+    R.legs[i] = leg;
+  }
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n, leg = R.legs[i], nxt = R.legs[j];
+    if (!turbo) {
+      for (let L = 0; L < lanes; L++) { net.link(R.segA[i], L, R.segB[i], L); net.link(R.segB[i], L, R.segA[j], L); }
+      if (nxt.outb) for (let e = 0; e < nxt.outL; e++) net.link(R.segB[i], nxt.e0 + e, nxt.outb, e);
+      if (leg.inb) for (let L = 0; L < leg.inL; L++) net.link(leg.inb, L, R.segB[i], leg.k0 + L);
+      for (const r of [R.segA[i], R.segB[i], leg.inb]) if (r) r.rbNext = j;
+    } else {
+      const [a0, a1] = R.segA[i], [b0, b1] = R.segB[i], [na0, na1] = R.segA[j];
+      net.link(a0, 0, b0, 0); net.link(a1, 0, b1, 0);
+      net.link(b0, 0, na0, 0); net.link(b0, 0, na1, 0);
+      if (nxt.outb) net.link(b1, 0, nxt.outb, 0);
+      if (leg.inb) { net.link(leg.inb, 0, b0, 0); net.link(leg.inb, 1, b1, 0); }
+    }
+    // 右轉快速道：不進圓環，直接接到下一個出口
+    if (bypass.includes(i) && leg.inb && nxt.outb) {
+      const P = leg.inb.path.at(leg.inb.len, leg.inb.lat(leg.inL)), Q = nxt.outb.path.at(45, nxt.outb.lat(nxt.outL - 1));
+      const bp = net.road(`${id}by${i}`, new Pen(P.x, P.y, P.h).bezierTo(Q.x, Q.y, Q.h, 0.5, 0.5).path(), 1, { center: true, vmax: 35, kind: "urban", name: "右轉快速道" });
+      net.link(leg.inb, leg.inL, bp, 0); net.link(bp, 0, nxt.outb, nxt.outL - 1, bp.len, 45);
+      leg.bypass = bp;
+    }
+  }
+  if (hints && !turbo && lanes > 1) {
+    R.hintsOn = true;
+    const hint = (road) => (v) => {
+      if (!R.hintsOn || !v.dest || v.dest.rb !== id) return null;
+      const ex = (v.dest.rbLeg - road.rbNext + n) % n;
+      if (ex === 0) return [lanes - 1];
+      if (ex >= 2) return [0];
+      return null;
+    };
+    for (let i = 0; i < n; i++) for (const r of [R.segA[i], R.segB[i], R.legs[i].inb]) if (r) r.laneHint = hint(r);
+  }
+  // 其他出口當目的地（不迴轉）
+  R.setDests = (w = () => 1) => R.legs.forEach((lg, i) => {
+    if (!lg.inb || !lg.inb.src) return;
+    lg.inb.src.dests = R.legs.map((x, j) => ({ road: x.outb, w: j === i ? 0 : w(i, j) })).filter((x) => x.road && x.w > 0);
+  });
+  net.deco.push({ type: "island", cx, cy, r: Rin - 0.6 });
+  return R;
+}
+const rbFlows = (R, label = "邊進來", max = 1500) => R.legs.filter((l) => l.inb && l.inb.src).map((l) => flowCtl(l.inb, l.name + label, max, 50));
+
+/* ================= 圓環情境 ================= */
+add({
+  id: "rb5", group: "圓環", name: "五叉圓環（英式）",
+  desc: "五條路接在同一個圓環，沒有紅綠燈，進環的車要讓環內的車先走。五個方向輪流找空隙，是歐洲很常見的設計。",
+  build() {
+    const net = new Net();
+    const R = rbt(net, { id: "r", Rin: 26, delta: 20, legs: [0, -72, -144, -216, -288].map((a, i) => ({ k: "L" + i, a, flow: 450 })) });
+    R.setDests();
+    net.finalize();
+    return { net, main: [], focus: { x: 0, y: 0, w: 150 }, controls: rbFlows(R) };
+  },
+});
+
+add({
+  id: "minirb", group: "圓環", name: "迷你圓環（英國住宅區）",
+  desc: "中間只有一個畫在地上的白色圓點，車子幾乎是直接繞過去，速度很慢但不用停等紅燈。車少時很有效率，車一多就容易互相卡住。",
+  build() {
+    const net = new Net();
+    const R = rbt(net, { id: "r", Rin: 8, delta: 28, vmax: 18, armVmax: 40, legs: [0, -90, -180, -270].map((a, i) => ({ k: "L" + i, a, flow: 350, arm: 170 })) });
+    R.setDests();
+    net.deco = net.deco.filter((d) => d.type !== "island");
+    net.deco.push({ type: "island", cx: 0, cy: 0, r: 3.5, paint: true });
+    net.finalize();
+    return { net, main: [], focus: { x: 0, y: 0, w: 75 }, truckPct: 0.05, controls: rbFlows(R, "邊進來", 900) };
+  },
+});
+
+add({
+  id: "rb2lane", group: "圓環", name: "雙車道圓環（美國、歐洲）",
+  desc: "環內有兩圈：繞比較遠的車走內圈，右轉的車走外圈。只有外圈可以出環，所以內圈的車要在出口前換到外圈，常常在這裡互相卡住。關掉「依出口選車道」看看大家亂走會怎樣。",
+  build() {
+    const net = new Net();
+    const R = rbt(net, { id: "r", Rin: 26, lanes: 2, delta: 20, vmax: 35, hints: true, legs: [0, -90, -180, -270].map((a) => ({ k: "L" + a, a, inL: 2, flow: 700 })) });
+    R.setDests();
+    net.finalize();
+    return {
+      net, main: [], focus: { x: 0, y: 0, w: 160 },
+      controls: [...rbFlows(R), { type: "toggle", label: "依出口選車道（看標線）", value: true, set: (sim, on) => (R.hintsOn = on) }],
+    };
+  },
+});
+
+add({
+  id: "turbo", group: "圓環", name: "渦輪式圓環（荷蘭）",
+  desc: "荷蘭發明的設計：進環前就要選好車道，環內用實體分隔、完全不能換車道。內圈的車繞過一個路口後會「螺旋」轉到外圈出去，不會互相交織，比一般雙車道圓環安全也更順。",
+  build() {
+    const net = new Net();
+    const R = rbt(net, { id: "r", Rin: 24, lanes: 2, delta: 20, vmax: 35, turbo: true, legs: [0, -90, -180, -270].map((a) => ({ k: "L" + a, a, inL: 2, flow: 900 })) });
+    R.setDests();
+    net.finalize();
+    return { net, main: [], focus: { x: 0, y: 0, w: 150 }, controls: rbFlows(R) };
+  },
+});
+
+add({
+  id: "dogbone", group: "圓環", name: "狗骨頭交流道（雙圓環）",
+  desc: "國道兩側各一個圓環，中間用跨越橋連起來，取代交流道的紅綠燈。下國道的車進圓環，再繞到要去的方向；上國道的車從圓環出去接匝道。",
+  build() {
+    const net = new Net();
+    const eb = fw(net, "eb", -900, 2, 1800, 3, { name: "國道東向" });
+    const wb = net.road("wb", new Pen(900, -2, Math.PI).line(1800).path(), 3, { name: "國道西向" });
+    eb.src = { flow: 3600, name: "國道東向" }; wb.src = { flow: 3600, name: "國道西向" };
+    const S = rbt(net, { id: "s", cy: 160, Rin: 18, delta: 26, legs: [
+      { k: "E", a: 0, arm: 70, noIn: true, name: "東" }, { k: "N", a: -90, arm: 160, name: "橋" },
+      { k: "W", a: -180, arm: 70, noOut: true, name: "西" }, { k: "S", a: -270, arm: 220, flow: 500, name: "南邊地方道路" }] });
+    const N = rbt(net, { id: "n", cy: -160, Rin: 18, delta: 26, legs: [
+      { k: "E", a: 0, arm: 70, noOut: true, name: "東" }, { k: "N", a: -90, arm: 220, flow: 500, name: "北邊地方道路" },
+      { k: "W", a: -180, arm: 70, noIn: true, name: "西" }, { k: "S", a: -270, arm: 160, name: "橋" }] });
+    const [sE, sN, sW, sS] = S.legs, [nE, nN, nW, nS] = N.legs;
+    net.link(sN.outb, 0, nS.inb, 0); net.link(nS.outb, 0, sN.inb, 0);
+    sN.inb.yieldEnd = nS.inb.yieldEnd = true;
+    // 東向：西側下匝道 → 南圓環；南圓環 → 東側上匝道
+    const offE = 600, onE = 1200;
+    eb.aux(3, offE - 160, offE); eb.aux(3, onE, onE + 250);
+    let p = eb.path.at(offE, eb.lat(3)), q = sW.inb.path.at(0);
+    const ebOff = net.road("ebOff", new Pen(p.x, p.y, 0).bezierTo(q.x, q.y, q.h, 0.5, 0.5).path(), 1, { center: true, vmax: 60, kind: "ramp", name: "東向出口" });
+    net.link(eb, 3, ebOff, 0, offE, 0); net.link(ebOff, 0, sW.inb, 0);
+    p = sE.outb.path.at(sE.outb.len); q = eb.path.at(onE, eb.lat(3));
+    const ebOn = net.road("ebOn", new Pen(p.x, p.y, p.h).bezierTo(q.x, q.y, 0, 0.5, 0.5).path(), 1, { center: true, vmax: 60, kind: "ramp", name: "東向入口" });
+    net.link(sE.outb, 0, ebOn, 0); net.link(ebOn, 0, eb, 3, ebOn.len, onE);
+    // 西向：東側下匝道 → 北圓環；北圓環 → 西側上匝道
+    wb.aux(3, offE - 160, offE); wb.aux(3, onE, onE + 250);
+    p = wb.path.at(offE, wb.lat(3)); q = nE.inb.path.at(0);
+    const wbOff = net.road("wbOff", new Pen(p.x, p.y, Math.PI).bezierTo(q.x, q.y, q.h, 0.5, 0.5).path(), 1, { center: true, vmax: 60, kind: "ramp", name: "西向出口" });
+    net.link(wb, 3, wbOff, 0, offE, 0); net.link(wbOff, 0, nE.inb, 0);
+    p = nW.outb.path.at(nW.outb.len); q = wb.path.at(onE, wb.lat(3));
+    const wbOn = net.road("wbOn", new Pen(p.x, p.y, p.h).bezierTo(q.x, q.y, Math.PI, 0.5, 0.5).path(), 1, { center: true, vmax: 60, kind: "ramp", name: "西向入口" });
+    net.link(nW.outb, 0, wbOn, 0); net.link(wbOn, 0, wb, 3, wbOn.len, onE);
+    const P = { exit: 0.12 };
+    const setD = () => {
+      eb.src.dests = [{ road: eb, w: 1 - P.exit }, { road: sS.outb, w: P.exit / 2 }, { road: nN.outb, w: P.exit / 2 }];
+      wb.src.dests = [{ road: wb, w: 1 - P.exit }, { road: sS.outb, w: P.exit / 2 }, { road: nN.outb, w: P.exit / 2 }];
+      sS.inb.src.dests = [{ road: eb, w: 1 }, { road: wb, w: 1 }, { road: nN.outb, w: 1 }];
+      nN.inb.src.dests = [{ road: eb, w: 1 }, { road: wb, w: 1 }, { road: sS.outb, w: 1 }];
+    };
+    setD();
+    net.labels.push({ x: 14, y: 0, text: "跨越橋" });
+    net.finalize();
+    return {
+      net, main: ["eb"], focus: { x: 0, y: 0, w: 520 },
+      controls: [
+        flowCtl(eb, "國道東向車流"), flowCtl(wb, "國道西向車流"),
+        flowCtl(sS.inb, "南邊地方道路", 1500, 50), flowCtl(nN.inb, "北邊地方道路", 1500, 50),
+        { type: "range", label: "國道下交流道比例", min: 0, max: 40, step: 2, value: 12, unit: "%", set: (sim, v) => { P.exit = v / 100; setD(); } },
+      ],
+    };
+  },
+});
+
+add({
+  id: "magic", group: "圓環", name: "魔法圓環（英國 Swindon）",
+  desc: "英國最有名的路口：一個大圓環外面圍著五個小圓環。外圈照一般方向繞，內圈卻是反方向繞！車子可以選最短的方向，到每個小圓環都要讓路。看起來很亂，其實很有效率。",
+  build() {
+    const net = new Net();
+    const Rc = 80, ms = [];
+    const phis = [0, -72, -144, -216, -288];
+    const P = phis.map((f) => [Rc * Math.cos(f * D2R), Rc * Math.sin(f * D2R)]);
+    const ang = (a, b) => Math.atan2(b[1] - a[1], b[0] - a[0]) / D2R;
+    const chord = Math.hypot(P[1][0] - P[0][0], P[1][1] - P[0][1]);
+    phis.forEach((f, k) => {
+      const nx = (k + 1) % 5, pv = (k + 4) % 5;
+      const legs = [
+        { k: "A", a: f, arm: 190, flow: 450, name: "路" + "ABCDE"[k] },
+        { k: "N", a: ang(P[k], P[nx]), arm: chord / 2, name: "下一個小圓環" },
+        { k: "P", a: ang(P[k], P[pv]), arm: chord / 2, name: "上一個小圓環" },
+      ];
+      legs.forEach((l) => { l.a = ((l.a % 360) + 360) % 360; });
+      legs.sort((x, y) => y.a - x.a);
+      const R = rbt(net, { id: "m" + k, cx: P[k][0], cy: P[k][1], Rin: 6, delta: 30, vmax: 22, armVmax: 40, legs });
+      R.leg = Object.fromEntries(legs.map((l, i) => [l.k, R.legs[i]]));
+      ms.push(R);
+    });
+    ms.forEach((R, k) => {
+      const nx = ms[(k + 1) % 5];
+      net.link(R.leg.N.outb, 0, nx.leg.P.inb, 0);
+      net.link(nx.leg.P.outb, 0, R.leg.N.inb, 0);
+    });
+    const arms = ms.map((R) => R.leg.A);
+    arms.forEach((a, i) => { a.inb.src.dests = arms.map((b, j) => ({ road: b.outb, w: j === i ? 0 : 1 })).filter((x) => x.w); });
+    net.deco.unshift({ type: "island", cx: 0, cy: 0, r: Rc - 22, big: true });
+    net.finalize();
+    return { net, main: [], focus: { x: 0, y: 0, w: 260 }, controls: arms.map((a) => flowCtl(a.inb, a.name + " 進來", 1200, 50)) };
+  },
+});
+
+add({
+  id: "rbbypass", group: "圓環", name: "附設右轉快速道的圓環",
+  desc: "要右轉的車有自己的專用道，不用進圓環就能直接轉出去。右轉車很多的路口，這樣可以讓圓環本身輕鬆很多。關掉快速道比較看看。",
+  build() {
+    const net = new Net();
+    const R = rbt(net, { id: "r", Rin: 24, delta: 22, bypass: [0, 1, 2, 3], legs: [0, -90, -180, -270].map((a) => ({ k: "L" + a, a, flow: 550 })) });
+    const T = { right: 45 };
+    const setD = () => R.setDests((i, j) => ((j - i + 4) % 4 === 1 ? T.right : (100 - T.right) / 2));
+    setD();
+    const bps = R.legs.map((l) => l.bypass).filter(Boolean);
+    net.finalize();
+    return {
+      net, main: [], focus: { x: 0, y: 0, w: 170 },
+      controls: [
+        ...rbFlows(R, "邊進來", 1500),
+        { type: "range", label: "右轉比例", min: 10, max: 80, step: 5, value: 45, unit: "%", set: (sim, v) => { T.right = v; setD(); } },
+        { type: "toggle", label: "右轉快速道開放", value: true, set: (sim, on) => bps.forEach((b) => (b.closed = !on)) },
+      ],
+    };
+  },
+});
+
+add({
+  id: "rbsignal", group: "圓環", name: "號誌化大圓環（台灣市區）",
+  desc: "像台中、嘉義市區那種很大的圓環：入口有紅綠燈，環內在每個入口前也有停止線。南北向、東西向輪流放行。關掉號誌改成「讓環內先走」比較看看。",
+  build() {
+    const net = new Net();
+    const R = rbt(net, { id: "r", Rin: 68, lanes: 2, delta: 10, vmax: 40, hints: true, legs: [0, -90, -180, -270].map((a) => ({ k: "L" + a, a, inL: 2, flow: 550, arm: 300 })) });
+    R.setDests();
+    const sig = net.signal([{ g: ["E0", "R1"], dur: 25 }, { g: ["E1", "R0"], dur: 25 }], { yellow: 3, allRed: 3 });
+    const setSig = (on) => R.legs.forEach((l, i) => {
+      l.inb.laneSignal = on ? [0, 1].map(() => ({ sig, group: "E" + (i % 2) })) : null;
+      l.inb.yieldEnd = !on;
+      l.inb.keepClear = on;
+      R.segA[i].keepClear = on;
+      R.segA[i].laneSignal = on ? [0, 1].map(() => ({ sig, group: "R" + (i % 2) })) : null;
+    });
+    net.finalize();
+    return {
+      net, main: [], focus: { x: 0, y: 0, w: 330 },
+      controls: [
+        ...rbFlows(R, "邊進來", 2000),
+        { type: "toggle", label: "號誌控制", value: true, set: (sim, on) => setSig(on) },
+        { type: "range", label: "每個時相綠燈", min: 10, max: 60, step: 5, value: 25, unit: "秒", set: (sim, v) => { sig.phases[0].dur = sig.phases[1].dur = v; sig.recalc(); } },
+      ],
+    };
+  },
+});
+
+add({
+  id: "rbmeter", group: "圓環", name: "入口號誌圓環（尖峰時段）",
+  desc: "東西向車流很大，從西邊進來的車一直佔滿環道，南邊的車等不到空隙。在西邊入口裝一組紅綠燈，偶爾擋一下，南邊的車就有機會進去。",
+  build() {
+    const net = new Net();
+    const flows = { 0: 1000, [-90]: 300, [-180]: 1100, [-270]: 450 };
+    const R = rbt(net, { id: "r", Rin: 26, delta: 20, legs: [0, -90, -180, -270].map((a) => ({ k: "L" + a, a, flow: flows[a] })) });
+    R.setDests((i, j) => ((i === 0 && j === 2) || (i === 2 && j === 0) ? 4 : 1));
+    const W = R.legs[2].inb;
+    const sig = net.signal([{ g: ["G"], dur: 22 }, { g: [], dur: 12 }], { yellow: 3, allRed: 1 });
+    net.finalize();
+    return {
+      net, main: [], focus: { x: 0, y: 0, w: 160 },
+      controls: [
+        ...rbFlows(R, "邊進來", 1600),
+        { type: "toggle", label: "西邊入口號誌", value: false, set: (sim, on) => { W.laneSignal = on ? [{ sig, group: "G" }] : null; W.yieldEnd = true; } },
+        { type: "range", label: "西邊入口紅燈", min: 4, max: 40, step: 2, value: 12, unit: "秒", set: (sim, v) => { sig.phases[1].dur = v; sig.recalc(); } },
+      ],
+    };
+  },
+});
+
+add({
+  id: "throughabout", group: "圓環", name: "穿越式圓環（主幹道直穿）",
+  desc: "東西向主幹道直接從圓環正中間穿過去，用紅綠燈和環道輪流；南北向的車照樣繞圓環（也能迴轉）。主幹道直行車不用繞圈，容量大很多。",
+  build() {
+    const net = new Net();
+    const Rc = 45, Rin = Rc - LW / 2, dc = Math.asin(10 / Rc) / D2R;
+    const E = street(net, { id: "te", horiz: true, fixed: 1, dir: 1, from: -420, to: 420, cross: [-Rc - 2, Rc - 2], cw: 4, name: "主幹道東向", srcName: "主幹道往東", flow: 1100 });
+    const W = street(net, { id: "tw", horiz: true, fixed: -8, dir: -1, from: 420, to: -420, cross: [-Rc - 2, Rc - 2], cw: 4, name: "主幹道西向", srcName: "主幹道往西", flow: 1100 });
+    const ring = (rid, a0, a1, extra = {}) => net.road(rid, arcPath(0, 0, Rin, a0, a1), 1, { vmax: 30, kind: "urban", name: "圓環", ...extra });
+    const bxE = ring("rbxE", dc, -dc, { name: "路口" }), r1 = ring("r1", -dc, -70), r2 = ring("r2", -70, -110), r3 = ring("r3", -110, -180 + dc);
+    const bxW = ring("rbxW", -180 + dc, -180 - dc, { name: "路口" }), r4 = ring("r4", -180 - dc, -250), r5 = ring("r5", -250, -290), r6 = ring("r6", -290, -360 + dc);
+    const legN = rbLeg(net, { id: "N", cx: 0, cy: 0, Rin, Rout: Rin + LW, a: -90, aN: -110, aE: -70, inR: Rin, outR: Rin, arm: 230, name: "北" });
+    const legS = rbLeg(net, { id: "S", cx: 0, cy: 0, Rin, Rout: Rin + LW, a: 90, aN: -290, aE: -250, inR: Rin, outR: Rin, arm: 230, name: "南" });
+    const chain = [bxE, r1, r2, r3, bxW, r4, r5, r6];
+    chain.forEach((r, i) => net.link(r, 0, chain[(i + 1) % 8], 0));
+    net.link(r1, 0, legN.outb, 0); net.link(r4, 0, legS.outb, 0);
+    net.link(legN.inb, 0, r3, 0); net.link(legS.inb, 0, r6, 0);
+    legN.inb.yieldEnd = legS.inb.yieldEnd = true;
+    legN.inb.src = { flow: 350, name: "北邊進來" }; legS.inb.src = { flow: 350, name: "南邊進來" };
+    legN.inb.src.dests = [{ road: legS.outb, w: 4 }, { road: legN.outb, w: 1 }];
+    legS.inb.src.dests = [{ road: legN.outb, w: 4 }, { road: legS.outb, w: 1 }];
+    const sig = net.signal([{ g: ["T"], dur: 30 }, { g: ["C"], dur: 15 }], { yellow: 3, allRed: 2 });
+    for (const [rb, eb, wb] of [[bxE, E.xs[1].bx, W.xs[0].bx], [bxW, E.xs[0].bx, W.xs[1].bx]]) {
+      rb.box = true; rb.conflicts = [eb, wb]; eb.conflicts.push(rb); wb.conflicts.push(rb);
+    }
+    for (const st of [E, W]) for (const x of st.xs) x.ap.laneSignal = [0, 1].map(() => ({ sig, group: "T" }));
+    r3.laneSignal = [{ sig, group: "C" }]; r6.laneSignal = [{ sig, group: "C" }];
+    net.deco.push({ type: "island", cx: 0, cy: 0, r: Rin - 0.6 });
+    net.finalize();
+    return {
+      net, main: E.ids, focus: { x: 0, y: 0, w: 220 },
+      controls: [
+        flowCtl(E.first, "主幹道往東", 2500, 50), flowCtl(W.first, "主幹道往西", 2500, 50),
+        flowCtl(legN.inb, "北邊進來", 1200, 50), flowCtl(legS.inb, "南邊進來", 1200, 50),
+        { type: "range", label: "主幹道綠燈", min: 10, max: 60, step: 2, value: 30, unit: "秒", set: (sim, v) => { sig.phases[0].dur = v; sig.recalc(); } },
+        { type: "range", label: "環道綠燈", min: 6, max: 40, step: 2, value: 15, unit: "秒", set: (sim, v) => { sig.phases[1].dur = v; sig.recalc(); } },
+      ],
+    };
+  },
+});
+
+add({
+  id: "rbvssignal", group: "圓環", name: "圓環 vs 紅綠燈路口",
+  desc: "左邊是圓環、右邊是紅綠燈十字路口，四個方向的車流一樣多。慢慢把車流拉高，看在多少車流量時圓環開始輸給紅綠燈（看右側表格兩邊的平均旅行時間）。",
+  build() {
+    const net = new Net();
+    const R = rbt(net, { id: "r", cx: -330, Rin: 24, delta: 22, legs: [0, -90, -180, -270].map((a) => ({ k: "L" + a, a, flow: 500, arm: 250 })) });
+    R.setDests();
+    R.legs.forEach((l) => { l.outb.name = "圓環"; l.inb.src.name = "圓環 " + l.name; });
+    const X = crossroads(net, { cx: 330, arm: 250, flows: [500, 500, 500, 500] });
+    X.turns.L = 33; X.turns.R = 33; X.applyTurns();
+    for (const k of Object.keys(X.outb)) X.outb[k].name = "紅綠燈路口";
+    for (const k of Object.keys(X.inb)) X.inb[k].src.name = "路口 " + X.inb[k].src.name;
+    const all = [...R.legs.map((l) => l.inb), ...Object.values(X.inb)];
+    net.finalize();
+    return {
+      net, main: [], focus: { x: 0, y: 0, w: 1000 },
+      controls: [{ type: "range", label: "每個方向車流（兩邊一樣）", min: 100, max: 1200, step: 50, value: 500, unit: "輛/時", set: (sim, v) => all.forEach((r) => (r.src.flow = v)) }],
+    };
+  },
+});
+
+add({
+  id: "rbpriority", group: "圓環", name: "讓路規則：環內優先 vs 進環優先",
+  desc: "現在的規則是「進環讓環內」。以前有些國家規定反過來「環內讓進環」，結果車子一直往裡面塞、環內的車出不去，整個圓環很容易卡死。切換看看。",
+  build() {
+    const net = new Net();
+    const R = rbt(net, { id: "r", Rin: 26, delta: 20, legs: [0, -90, -180, -270].map((a) => ({ k: "L" + a, a, flow: 550 })) });
+    R.setDests();
+    net.finalize();
+    return {
+      net, main: [], focus: { x: 0, y: 0, w: 150 },
+      controls: [
+        ...rbFlows(R, "邊進來", 1200),
+        { type: "select", label: "讓路規則", options: ["環內優先（進環的車要讓）", "進環優先（環內的車要讓）"], value: 0,
+          set: (sim, i) => R.legs.forEach((l, k) => { l.inb.yieldEnd = i === 0; R.segA[k].yieldEnd = i === 1; }) },
+      ],
+    };
+  },
+});
+
 /* 依分組排序（清單才不會重複出現同一個分組標題） */
-const ORDER = ["高速公路", "交流道", "交通管理", "市區道路"];
+const ORDER = ["高速公路", "交流道", "交通管理", "市區道路", "圓環"];
 SCENARIOS.sort((a, b) => ORDER.indexOf(a.group) - ORDER.indexOf(b.group));

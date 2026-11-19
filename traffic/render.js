@@ -144,6 +144,7 @@ export class Renderer {
     const px = 1 / z; // 一個像素是幾公尺
 
     this.drawGrid(ctx, px);
+    for (const d of this.net.deco) if (d.type === "island" && d.big) this.drawDeco(ctx, d, sim, px, true);
     for (const d of this.net.deco) if (d.type === "street" || d.type === "shoulderline" || d.type === "parking" || d.type === "rail") this.drawDeco(ctx, d, sim, px, true);
 
     // 柏油
@@ -162,7 +163,7 @@ export class Renderer {
 
     this.drawSignals(ctx, sim, px);
     for (const r of this.net.roads) for (const b of r.blocks) if (b.on) this.drawBlock(ctx, r, b, px);
-    for (const d of this.net.deco) if (!["street", "shoulderline", "parking", "rail", "tunnel", "fog", "bridge", "glare"].includes(d.type)) this.drawDeco(ctx, d, sim, px);
+    for (const d of this.net.deco) if (!["street", "shoulderline", "parking", "rail", "tunnel", "fog", "bridge", "glare"].includes(d.type) && !(d.type === "island" && d.big)) this.drawDeco(ctx, d, sim, px);
 
     // 車輛
     // 只畫畫面內的車
@@ -469,6 +470,12 @@ export class Renderer {
         }
       }
       if (down && Math.floor(performance.now() / 400) % 2) this.label(ctx, "🚨 噹噹噹 柵欄放下", d.x + d.w / 2, -2 * LW - 14, px, { color: "#ff8a9a" });
+    } else if (d.type === "island") {
+      ctx.beginPath(); ctx.arc(d.cx, d.cy, d.r, 0, Math.PI * 2);
+      if (d.paint) { ctx.fillStyle = "#e9ecf2"; ctx.fill(); return; }
+      ctx.fillStyle = d.big ? "#13261c" : "#1d3b2a"; ctx.fill();
+      ctx.strokeStyle = "#e9ecf2"; ctx.lineWidth = Math.max(0.25, px); ctx.stroke();
+      if (!d.big && d.r > 6) { ctx.beginPath(); ctx.arc(d.cx, d.cy, d.r * 0.55, 0, Math.PI * 2); ctx.fillStyle = "#2a5a3c"; ctx.fill(); }
     } else if (d.type === "shoulderline") {
       const r = d.road;
       ctx.fillStyle = "#2a2f37";
@@ -477,6 +484,7 @@ export class Renderer {
   }
 
   drawLabels(ctx, sim, px) {
+    for (const l of this.net.labels || []) this.label(ctx, l.text, l.x, l.y, px, { color: "#c9c4e6" });
     for (const r of this.net.roads) {
       if (r.src) {
         const p = r.path.at(Math.min(30, r.len / 2), r.lat(r.lanes - 1) + LW / 2 + 9);
