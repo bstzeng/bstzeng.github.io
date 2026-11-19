@@ -810,3 +810,450 @@ add({
     };
   },
 });
+
+/* ================= 第二批：更多路上狀況 ================= */
+
+/** 一條有好幾個路口的單向街道；回傳每個路口的進口段與路口方塊 */
+function street(net, o) {
+  const { id, horiz, fixed, dir, from, to, lanes = 2, cross = [], cw = 2 * LW, vmax = 50, name = "街道" } = o;
+  const band = lanes * LW;
+  const lat = horiz ? (dir > 0 ? fixed : fixed + band) : (dir > 0 ? fixed + band : fixed);
+  const h = horiz ? (dir > 0 ? 0 : Math.PI) : (dir > 0 ? Math.PI / 2 : -Math.PI / 2);
+  const pt = (u) => (horiz ? [u, lat] : [lat, u]);
+  const cs = [...cross].sort((a, b) => (a - b) * dir);
+  const mk = (rid, u0, u1, extra = {}) => {
+    const [x, y] = pt(u0);
+    return net.road(rid, new Pen(x, y, h).line(Math.abs(u1 - u0)).path(), lanes, { vmax, kind: "urban", name, ...extra });
+  };
+  const roads = [], xs = [];
+  let u = from, prev = null;
+  cs.forEach((c, i) => {
+    const b0 = dir > 0 ? c - 2 : c + cw + 2, b1 = dir > 0 ? c + cw + 2 : c - 2;
+    const ap = mk(`${id}s${i}`, u, b0);
+    const bx = mk(`${id}b${i}`, b0, b1, { name: "路口" });
+    bx.box = true; bx.conflicts = [];
+    if (prev) linkAll(net, prev, ap);
+    linkAll(net, ap, bx);
+    roads.push(ap, bx); xs.push({ c, ap, bx });
+    prev = bx; u = b1;
+  });
+  const last = mk(`${id}s${cs.length}`, u, to, { name: name + "出口" });
+  if (prev) linkAll(net, prev, last);
+  roads.push(last);
+  roads[0].src = { flow: o.flow ?? 500, name: o.srcName || name };
+  return { roads, xs, first: roads[0], last, ids: roads.map((r) => r.id) };
+}
+
+function crossAt(net, hx, vx, sig, groups = ["H", "V"]) {
+  hx.bx.conflicts.push(vx.bx); vx.bx.conflicts.push(hx.bx);
+  hx.ap.laneSignal = Array.from({ length: hx.ap.lanes }, () => ({ sig, group: groups[0] }));
+  vx.ap.laneSignal = Array.from({ length: vx.ap.lanes }, () => ({ sig, group: groups[1] }));
+}
+
+add({
+  id: "ambulance", group: "高速公路", name: "救護車要通過",
+  desc: "按下「派出救護車」，後面會開來一台鳴笛的救護車。前面的車會往兩邊讓出它的車道。關掉「其他車會讓道」比較救護車要花多少時間才能通過。",
+  build() {
+    const net = new Net();
+    const m = fw(net, "m", 0, 0, 3200, 3, { name: "國道主線" });
+    m.src = { flow: 4800, name: "主線" };
+    net.finalize();
+    return {
+      net, main: ["m"], focus: { x: 900, y: 5, w: 300 },
+      follow: (sim) => { const e = sim && sim.ems[sim.ems.length - 1]; return e ? { road: e.road, s: e.s } : null; },
+      controls: [
+        flowCtl(m, "主線車流"),
+        { type: "button", label: "🚑 派出救護車", act: (sim) => { m.src.nextType = "ems"; m.src.queue++; } },
+        { type: "toggle", label: "其他車會讓道", value: true, set: (sim, on) => (sim.emsYield = on) },
+      ],
+    };
+  },
+});
+
+add({
+  id: "debris", group: "高速公路", name: "路面掉落物",
+  desc: "前車掉下來的貨物擋在車道上，而且要很近才看得到。後面的車只能急煞、急切車道。可以一直按「再掉一個」增加掉落物。",
+  build() {
+    const net = new Net();
+    const m = fw(net, "m", 0, 0, 2800, 3, { name: "國道主線" });
+    m.src = { flow: 4200, name: "主線" };
+    const drop = (sim, lane, s) => {
+      for (let tries = 0; tries < 40; tries++) {
+        const L = lane ?? Math.floor(Math.random() * 3);
+        const s0 = s ?? 1350 + Math.random() * 600;
+        const busy = sim && sim.vs.some((v) => v.road === m && (v.lane === L || v.lcFrom === L) && v.s > s0 - 6 && v.s - v.len < s0 + 9);
+        if (busy) { s = null; continue; }
+        m.blocks.push({ lane: L, s0, s1: s0 + 3, on: true, kind: "debris", warn: 70 });
+        return;
+      }
+    };
+    drop(null, 1, 1600);
+    net.finalize();
+    return {
+      net, main: ["m"], focus: { x: 1550, y: 5, w: 280 },
+      controls: [
+        flowCtl(m, "主線車流"),
+        { type: "button", label: "📦 再掉一個", act: (sim) => drop(sim) },
+        { type: "button", label: "🧹 清除全部掉落物", act: () => { m.blocks.length = 0; } },
+      ],
+    };
+  },
+});
+
+add({
+  id: "glare", group: "高速公路", name: "夕陽強光路段",
+  desc: "傍晚往西開，太陽正對著擋風玻璃。駕駛看不清楚，會突然放慢、拉開車距，強光路段的入口就變成瓶頸。",
+  build() {
+    const net = new Net();
+    const m = fw(net, "m", 0, 0, 3000, 3, { name: "國道主線" });
+    m.src = { flow: 4600, name: "主線" };
+    const z = { s0: 1300, s1: 1850, vmax: 70, tmul: 1.5, on: true };
+    m.zones.push(z);
+    net.deco.push({ type: "glare", road: m, s0: 1300, s1: 1850, zone: z });
+    net.finalize();
+    return {
+      net, main: ["m"], focus: { x: 1350, y: 5, w: 320 },
+      controls: [
+        flowCtl(m, "主線車流"),
+        { type: "toggle", label: "太陽正刺眼", value: true, set: (sim, on) => (z.on = on) },
+        { type: "range", label: "強光下車速", min: 40, max: 100, step: 5, value: 70, unit: "km/h", set: (sim, v) => (z.vmax = v) },
+      ],
+    };
+  },
+});
+
+add({
+  id: "downhill", group: "高速公路", name: "長下坡大貨車限速",
+  desc: "長下坡怕煞車過熱，大貨車限速 60。小客車一直要從大貨車旁邊超過，大貨車也會互相超車，佔住兩條車道。",
+  build() {
+    const net = new Net();
+    const m = fw(net, "m", 0, 0, 3200, 3, { name: "國道主線" });
+    m.src = { flow: 4200, name: "主線" };
+    const z = { s0: 900, s1: 2700, truckVmax: 60, on: true };
+    m.zones.push(z);
+    net.deco.push({ type: "grade", road: m, s0: 900, s1: 2700, text: "下坡 5%・大貨車限速 60" });
+    net.finalize();
+    return {
+      net, main: ["m"], focus: { x: 1200, y: 5, w: 320 }, truckPct: 0.25,
+      controls: [
+        flowCtl(m, "主線車流"),
+        { type: "range", label: "大貨車限速", min: 40, max: 100, step: 5, value: 60, unit: "km/h", set: (sim, v) => (z.truckVmax = v) },
+        { type: "toggle", label: "大貨車只能走外側兩線", value: false, set: (sim, on) => { on ? m.truckBan.add(0) : m.truckBan.delete(0); } },
+      ],
+    };
+  },
+});
+
+add({
+  id: "chaincrash", group: "高速公路", name: "連環追撞",
+  desc: "第一起事故造成回堵，排在車隊最後面的車又被追撞，形成第二個事故點。按「車隊尾端再發生追撞」，看回堵怎麼一段一段往後延伸。",
+  build() {
+    const net = new Net();
+    const m = fw(net, "m", 0, 0, 3200, 3, { name: "國道主線" });
+    m.src = { flow: 4600, name: "主線" };
+    m.blocks.push({ lane: 1, s0: 2300, s1: 2325, on: true, kind: "crash", warn: 400 });
+    m.zones.push({ s0: 2200, s1: 2400, vmax: 50 });
+    const crashTail = (sim) => {
+      const q = sim.vs.filter((v) => v.road === m && v.v < 4 && v.s < 2300 && v.s > 300 && v.lcFrom < 0);
+      if (!q.length) return;
+      const tail = q.reduce((a, b) => (b.s < a.s ? b : a));
+      const behind = sim.vs.find((v) => v !== tail && v.road === m && v.lane === tail.lane && v.s < tail.s - tail.len && v.s > tail.s - tail.len - 25);
+      const gone = new Set([tail, behind].filter(Boolean));
+      const s0 = Math.min(...[...gone].map((v) => v.s - v.len)) - 1;
+      sim.vs = sim.vs.filter((v) => !gone.has(v));
+      m.blocks.push({ lane: tail.lane, s0, s1: tail.s + 1, on: true, kind: "crash", warn: 150 });
+    };
+    net.finalize();
+    return {
+      net, main: ["m"], focus: { x: 1900, y: 5, w: 600 },
+      controls: [
+        flowCtl(m, "主線車流"),
+        { type: "button", label: "💥 車隊尾端再發生追撞", act: crashTail },
+        { type: "button", label: "🚓 全部事故處理完畢", act: () => { m.blocks.length = 0; m.zones.length = 0; } },
+      ],
+    };
+  },
+});
+
+add({
+  id: "camera", group: "高速公路", name: "測速照相 vs 區間測速",
+  desc: "很多人平常開 110 以上，看到測速照相才急煞，過了又加速，反而製造出小小的幽靈塞車。改成「區間測速」比較看看。",
+  build() {
+    const net = new Net();
+    const m = fw(net, "m", 0, 0, 3200, 3, { name: "國道主線", vmax: 112 });
+    m.src = { flow: 4600, name: "主線" };
+    const spot = { s0: 1480, s1: 1620, cap: 100, on: true };
+    const section = { s0: 700, s1: 2700, cap: 100, on: false };
+    m.zones.push(spot, section);
+    net.deco.push({ type: "camera", road: m, s: 1600, zone: spot }, { type: "section", road: m, s0: 700, s1: 2700, zone: section });
+    net.finalize();
+    return {
+      net, main: ["m"], focus: { x: 1450, y: 5, w: 320 }, noise: 0.2,
+      controls: [
+        flowCtl(m, "主線車流"),
+        { type: "select", label: "測速方式", options: ["定點測速照相", "區間測速（整段平均）", "沒有測速"], value: 0,
+          set: (sim, i) => { spot.on = i === 0; section.on = i === 1; } },
+      ],
+    };
+  },
+});
+
+add({
+  id: "ringroad", group: "高速公路", name: "環狀道路（沒有任何瓶頸）",
+  desc: "日本做過的著名實驗：一群車在圓形跑道上繞圈，沒有紅綠燈、沒有匝道，只要車子夠多，幾分鐘後就會自己出現走走停停的塞車波，而且會一直往後傳。調整車輛數試試看。",
+  build() {
+    const net = new Net();
+    const R = 60;
+    const a = net.road("ringA", new Pen(-R, 0, -Math.PI / 2).arc(R, 180).path(), 1, { center: true, vmax: 50, name: "環狀道路" });
+    const b = net.road("ringB", new Pen(R, 0, Math.PI / 2).arc(R, 180).path(), 1, { center: true, vmax: 50, name: "環狀道路" });
+    net.link(a, 0, b, 0); net.link(b, 0, a, 0);
+    net.finalize();
+    const fill = (sim, n) => {
+      sim.vs = [];
+      const L = a.len + b.len;
+      for (let k = 0; k < n; k++) {
+        const pos = (k * L) / n + 5;
+        const r = pos < a.len ? a : b, s = pos < a.len ? pos : pos - a.len;
+        sim.place(r, 0, s, "car", 8);
+      }
+    };
+    return {
+      net, main: ["ringA", "ringB"], focus: { x: 0, y: 0, w: 150 }, noise: 0.35, truckPct: 0,
+      controls: [
+        { type: "range", label: "車輛數（越多越容易塞）", min: 8, max: 50, step: 1, value: 30, unit: "輛", set: (sim, v) => fill(sim, v) },
+        { type: "button", label: "🛑 讓一台車踩一下煞車", act: (sim) => { const v = sim.vs[Math.floor(Math.random() * sim.vs.length)]; if (v) v.brakeUntil = sim.t + 2.5; } },
+      ],
+    };
+  },
+});
+
+add({
+  id: "toll", group: "交流道", name: "收費站 vs ETC",
+  desc: "以前國道有收費站，每台車都要停下來繳費，三線道散開成六個收費亭，繳完費又要擠回三線。打開「ETC 計程收費」就不用停，比較兩種的回堵。",
+  build() {
+    const net = new Net();
+    const A = fw(net, "a", 0, 0, 1200, 3, { name: "國道主線" });
+    A.src = { flow: 3600, name: "主線" };
+    const C = fw(net, "c", 1460, 0, 1200, 3, { name: "收費站後" });
+    const mid = A.lat(1), booths = [], boothS = [];
+    const service = { dwell: 6, etc: false };
+    for (let k = 0; k < 6; k++) {
+      const y = mid - 11.25 + k * 4.5, L = Math.floor(k / 2);
+      const pa = A.path.at(A.len, A.lat(L)), pc = C.path.at(0, C.lat(L));
+      const pen = new Pen(pa.x, pa.y, 0).bezierTo(1290, y, 0, 0.5, 0.5).line(50).bezierTo(pc.x, pc.y, 0, 0.5, 0.5);
+      const r = net.road("booth" + k, pen.path(), 1, { center: true, vmax: 40, kind: "ramp", name: "收費亭" });
+      const bs = r.len * 0.5;
+      r.onEnter = (v) => { if (!service.etc && service.dwell > 0) v.stops = [{ road: r, lane: 0, s: bs, dwell: service.dwell }]; };
+      net.link(A, L, r, 0); net.link(r, 0, C, L);
+      A.endW[r.id] = 1;
+      booths.push(r); boothS.push(bs);
+    }
+    net.deco.push({ type: "booths", roads: booths, s: boothS });
+    net.finalize();
+    return {
+      net, main: ["a"], focus: { x: 1300, y: 5, w: 340 },
+      controls: [
+        flowCtl(A, "主線車流"),
+        { type: "toggle", label: "ETC 計程收費（不用停）", value: false, set: (sim, on) => (service.etc = on) },
+        { type: "range", label: "人工繳費時間", min: 2, max: 15, step: 1, value: 6, unit: "秒", set: (sim, v) => (service.dwell = v) },
+      ],
+    };
+  },
+});
+
+add({
+  id: "leftramp", group: "交流道", name: "左側入口匝道",
+  desc: "少見的設計：匝道從內側（快車道）匯入。剛上來的車速度慢，卻要切進最快的車道，再一路往右換到慢車道，對主線干擾很大。",
+  build() {
+    const net = new Net();
+    const m = fw(net, "m", 0, 0, 2800, 4, { name: "國道主線" });
+    m.segs[0] = [];
+    m.src = { flow: 4300, name: "主線" };
+    const on = onRamp(net, m, { id: "on", at: 1300, accel: 250, flow: 800, K: 0, side: -70, name: "左側入口" });
+    net.finalize();
+    return { net, main: ["m"], focus: { x: 1250, y: -30, w: 420 }, controls: [flowCtl(m, "主線車流"), flowCtl(on, "匝道車流", 2000)] };
+  },
+});
+
+add({
+  id: "closeexits", group: "交流道", name: "連續出口、標示不清",
+  desc: "兩個出口只隔 300 公尺，標誌又放得太晚，駕駛很靠近才發現要下交流道，只好在最後一刻急切好幾個車道。把「看到出口標誌的距離」拉長，看看混亂會不會減少。",
+  build() {
+    const net = new Net();
+    const m = fw(net, "m", 0, 0, 2800, 3, { name: "國道主線" });
+    m.src = { flow: 4200, name: "主線" };
+    m.signDist = 250;
+    const o1 = offRamp(net, m, { id: "off1", at: 1500, decel: 150, K: 3, fwd: 200, side: 55, tail: 60, p: 0.15, name: "出口 A" });
+    const o2 = offRamp(net, m, { id: "off2", at: 1800, decel: 150, K: 3, fwd: 260, side: 120, tail: 60, p: 0.15, name: "出口 B" });
+    net.finalize();
+    return {
+      net, main: ["m"], focus: { x: 1550, y: 30, w: 380 },
+      controls: [
+        flowCtl(m, "主線車流"), splitCtl(m, o1, "下出口 A 比例"), splitCtl(m, o2, "下出口 B 比例"),
+        { type: "range", label: "看到出口標誌的距離", min: 100, max: 1500, step: 50, value: 250, unit: "公尺", set: (sim, v) => (m.signDist = v) },
+      ],
+    };
+  },
+});
+
+add({
+  id: "school", group: "市區道路", name: "學校接送時段",
+  desc: "放學時間，家長把車停在校門口外側車道等小孩，一台接一台，外側車道整條變成停車場，所有車都擠到內側。",
+  build() {
+    const net = new Net();
+    const r = fw(net, "r", 0, 0, 900, 2, { vmax: 50, kind: "urban", name: "學校前道路" });
+    const stopper = { p: 0.2, make: () => [{ road: r, lane: 1, s: 380 + Math.random() * 110, dwell: 20 + Math.random() * 50 }] };
+    r.src = { flow: 1100, name: "學校前道路", stopper };
+    const sig = net.signal([{ g: ["G"], dur: 40 }, { g: [], dur: 25 }], { yellow: 3, allRed: 2 });
+    r.laneSignal = [{ sig, group: "G" }, { sig, group: "G" }];
+    net.deco.push({ type: "place", road: r, s: 430, text: "🏫 校門口" });
+    net.finalize();
+    return {
+      net, main: ["r"], focus: { x: 450, y: 4, w: 300 }, truckPct: 0.03,
+      controls: [
+        flowCtl(r, "車流", 2500, 50),
+        { type: "range", label: "臨停接小孩的家長", min: 0, max: 50, step: 5, value: 20, unit: "%", set: (sim, v) => (stopper.p = v / 100) },
+      ],
+    };
+  },
+});
+
+add({
+  id: "nightmarket", group: "市區道路", name: "夜市路段",
+  desc: "夜市旁邊的路，速限低、車子一直靠邊臨停買東西，外側車道幾乎不能走，兩線道實際上只剩一線在動。",
+  build() {
+    const net = new Net();
+    const r = fw(net, "r", 0, 0, 1000, 2, { vmax: 30, kind: "urban", name: "夜市路段" });
+    const stopper = { p: 0.3, make: () => [{ road: r, lane: 1, s: 250 + Math.random() * 500, dwell: 15 + Math.random() * 35 }] };
+    r.src = { flow: 900, name: "夜市路段", stopper };
+    net.deco.push({ type: "market", road: r, s0: 230, s1: 780 });
+    net.finalize();
+    return {
+      net, main: ["r"], focus: { x: 500, y: 4, w: 320 }, truckPct: 0.02, noise: 0.25,
+      controls: [
+        flowCtl(r, "車流", 2000, 50),
+        { type: "range", label: "臨停買東西的車", min: 0, max: 60, step: 5, value: 30, unit: "%", set: (sim, v) => (stopper.p = v / 100) },
+      ],
+    };
+  },
+});
+
+add({
+  id: "railway", group: "市區道路", name: "鐵路平交道",
+  desc: "火車經過時柵欄放下，兩個方向的車都要停下來等。柵欄關越久、班次越密，排隊就越長，而且柵欄打開後要過很久隊伍才消化得完。",
+  build() {
+    const net = new Net();
+    const sig = net.signal([{ g: ["open"], dur: 120 }, { g: [], dur: 70 }], { yellow: 5, allRed: 0 });
+    const E = street(net, { id: "e", horiz: true, fixed: 0, dir: 1, from: 0, to: 900, cross: [450], cw: 10, name: "平交道東向", srcName: "往東", flow: 900 });
+    const Wd = street(net, { id: "w", horiz: true, fixed: -2 * LW - 1, dir: -1, from: 900, to: 0, cross: [450], cw: 10, name: "平交道西向", srcName: "往西", flow: 900 });
+    for (const st of [E, Wd]) st.xs[0].ap.laneSignal = [0, 1].map(() => ({ sig, group: "open" }));
+    net.deco.push({ type: "rail", x: 450, w: 10, sig });
+    net.finalize();
+    return {
+      net, main: E.ids, focus: { x: 450, y: 0, w: 380 },
+      controls: [
+        flowCtl(E.first, "往東車流", 2000, 50), flowCtl(Wd.first, "往西車流", 2000, 50),
+        { type: "range", label: "柵欄放下時間", min: 20, max: 180, step: 10, value: 70, unit: "秒", set: (sim, v) => { sig.phases[1].dur = v; sig.recalc(); } },
+        { type: "range", label: "柵欄打開時間", min: 30, max: 400, step: 10, value: 120, unit: "秒", set: (sim, v) => { sig.phases[0].dur = v; sig.recalc(); } },
+      ],
+    };
+  },
+});
+
+add({
+  id: "concert", group: "市區道路", name: "演唱會散場",
+  desc: "演唱會結束，停車場一次湧出大量車輛，要擠進外面的大馬路。按「散場！」開始，比較有沒有交管人員指揮（輪流放行）的差別。",
+  build() {
+    const net = new Net();
+    const a1 = fw(net, "a1", 0, 0, 500, 2, { vmax: 50, kind: "urban", name: "大馬路" });
+    const a2 = fw(net, "a2", 500, 0, 600, 2, { vmax: 50, kind: "urban", name: "大馬路" });
+    a1.src = { flow: 1500, name: "大馬路" };
+    linkAll(net, a1, a2);
+    const tp = a2.path.at(0, a2.lat(1));
+    const ex = net.road("exit", new Pen(380, 230, -Math.PI / 2).line(110).bezierTo(tp.x, tp.y, 0, 0.6, 0.6).path(), 1, { center: true, vmax: 20, kind: "urban", name: "停車場出口" });
+    net.link(ex, 0, a2, 1);
+    ex.src = { flow: 0, name: "停車場" };
+    const down = net.signal([{ g: ["G"], dur: 35 }, { g: [], dur: 25 }], { yellow: 3, allRed: 2 });
+    a2.laneSignal = [0, 1].map(() => ({ sig: down, group: "G" }));
+    const cop = net.signal([{ g: ["A"], dur: 25 }, { g: ["P"], dur: 20 }], { yellow: 2, allRed: 1 });
+    const surge = { left: 0 };
+    const setCop = (on) => {
+      a1.laneSignal = on ? [0, 1].map(() => ({ sig: cop, group: "A" })) : null;
+      ex.laneSignal = on ? [{ sig: cop, group: "P" }] : null;
+      ex.yieldEnd = !on;
+    };
+    net.deco.push({ type: "parking", x: 330, y: 240, w: 100, h: 70, text: "🎤 演唱會停車場" });
+    net.finalize();
+    return {
+      net, main: ["a1", "a2"], focus: { x: 470, y: 60, w: 360 },
+      onStep: (sim, dt) => {
+        if (surge.left > 0) { surge.left -= dt; ex.src.flow = surge.flow; if (surge.left <= 0) ex.src.flow = 0; }
+      },
+      controls: [
+        flowCtl(a1, "大馬路車流", 2000, 50),
+        { type: "range", label: "散場車流", min: 300, max: 2400, step: 100, value: 1500, unit: "輛/時", set: (sim, v) => { surge.flow = v; if (surge.left > 0) ex.src.flow = v; } },
+        { type: "button", label: "🎤 散場！（湧出 15 分鐘）", act: () => { surge.left = 900; ex.src.flow = surge.flow; } },
+        { type: "toggle", label: "交管人員指揮（輪流放行）", value: false, set: (sim, on) => setCop(on) },
+        { type: "range", label: "交管放行停車場秒數", min: 10, max: 60, step: 5, value: 20, unit: "秒", set: (sim, v) => { cop.phases[1].dur = v; cop.recalc(); } },
+      ],
+    };
+  },
+});
+
+add({
+  id: "closejunction", group: "市區道路", name: "兩個太近的路口",
+  desc: "兩個路口只隔 60 公尺。第二個路口紅燈時，排隊回堵到第一個路口，車子停在路口中間，側街綠燈了也過不去。打開「遵守路口淨空」比較。",
+  build() {
+    const net = new Net();
+    const A = street(net, { id: "a", horiz: true, fixed: 0, dir: 1, from: 0, to: 900, cross: [400, 470], name: "主幹道", srcName: "主幹道", flow: 1050 });
+    const c1 = street(net, { id: "p", horiz: false, fixed: 400, dir: -1, from: 260, to: -260, cross: [0], name: "側街 1", flow: 450 });
+    const c2 = street(net, { id: "q", horiz: false, fixed: 470, dir: 1, from: -260, to: 260, cross: [0], name: "側街 2", flow: 450 });
+    const s1 = net.signal([{ g: ["H"], dur: 30 }, { g: ["V"], dur: 25 }], { yellow: 3, allRed: 2 });
+    const s2 = net.signal([{ g: ["H"], dur: 20 }, { g: ["V"], dur: 35 }], { yellow: 3, allRed: 2, offset: 18 });
+    crossAt(net, A.xs[0], c1.xs[0], s1); crossAt(net, A.xs[1], c2.xs[0], s2);
+    const apps = [A.xs[0].ap, A.xs[1].ap, c1.xs[0].ap, c2.xs[0].ap];
+    net.finalize();
+    return {
+      net, main: A.ids, focus: { x: 435, y: 0, w: 300 },
+      controls: [
+        flowCtl(A.first, "主幹道車流", 2500, 50), flowCtl(c1.first, "側街 1 車流", 1500, 50), flowCtl(c2.first, "側街 2 車流", 1500, 50),
+        { type: "toggle", label: "遵守路口淨空（前面沒空間就不進路口）", value: false, set: (sim, on) => apps.forEach((r) => (r.keepClear = on)) },
+      ],
+    };
+  },
+});
+
+add({
+  id: "grid", group: "市區道路", name: "市中心單行道棋盤",
+  desc: "三橫三直的單行道，九個號誌路口。車一多，某個路口被卡住，就會一個傳一個，最後整片動彈不得（交通打結）。試試「遵守路口淨空」和「綠波協調」能不能救回來。",
+  build() {
+    const net = new Net();
+    const P = [0, 220, 440], LEN = 280;
+    const H = P.map((y, j) => street(net, { id: "h" + j, horiz: true, fixed: y, dir: j % 2 ? -1 : 1, from: j % 2 ? 440 + LEN : -LEN, to: j % 2 ? -LEN : 440 + LEN, cross: P, name: `橫街 ${j + 1}`, flow: 600 }));
+    const V = P.map((x, i) => street(net, { id: "v" + i, horiz: false, fixed: x, dir: i % 2 ? 1 : -1, from: i % 2 ? -LEN : 440 + LEN, to: i % 2 ? 440 + LEN : -LEN, cross: P, name: `直街 ${i + 1}`, flow: 500 }));
+    const sigs = [];
+    P.forEach((x, i) => P.forEach((y, j) => {
+      const sig = net.signal([{ g: ["H"], dur: 25 }, { g: ["V"], dur: 25 }], { yellow: 3, allRed: 2 });
+      sig.ij = [i, j];
+      sigs.push(sig);
+      crossAt(net, H[j].xs.find((q) => q.c === x), V[i].xs.find((q) => q.c === y), sig);
+    }));
+    const apps = [...H, ...V].flatMap((st) => st.xs.map((q) => q.ap));
+    const wave = (on) => sigs.forEach((s) => { const [i, j] = s.ij; s.offset = on ? -((j % 2 ? 2 - i : i) * 220) / (50 * KMH) : ((i * 7 + j * 13) % 6) * 9; });
+    wave(false);
+    net.finalize();
+    return {
+      net, main: H[0].ids, focus: { x: 220, y: 220, w: 560 },
+      controls: [
+        { type: "range", label: "每條橫街車流", min: 0, max: 1500, step: 50, value: 600, unit: "輛/時", set: (sim, v) => H.forEach((st) => (st.first.src.flow = v)) },
+        { type: "range", label: "每條直街車流", min: 0, max: 1500, step: 50, value: 500, unit: "輛/時", set: (sim, v) => V.forEach((st) => (st.first.src.flow = v)) },
+        { type: "toggle", label: "遵守路口淨空", value: false, set: (sim, on) => apps.forEach((r) => (r.keepClear = on)) },
+        { type: "toggle", label: "橫街綠波協調", value: false, set: (sim, on) => wave(on) },
+      ],
+    };
+  },
+});
+
+/* 依分組排序（清單才不會重複出現同一個分組標題） */
+const ORDER = ["高速公路", "交流道", "交通管理", "市區道路"];
+SCENARIOS.sort((a, b) => ORDER.indexOf(a.group) - ORDER.indexOf(b.group));

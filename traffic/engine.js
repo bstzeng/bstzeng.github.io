@@ -156,13 +156,15 @@ export class Road {
     return null;
   }
   zoneAt(s) {
-    let vm = this.vmax, tm = 1, grade = 0;
+    let vm = this.vmax, tm = 1, grade = 0, tv = Infinity, cap = Infinity;
     for (const z of this.zones) if (s >= z.s0 && s <= z.s1 && z.on !== false) {
       if (z.vmax) vm = Math.min(vm, z.vmax * KMH);
       if (z.tmul) tm = Math.max(tm, z.tmul);
       if (z.grade) grade = z.grade;
+      if (z.truckVmax) tv = Math.min(tv, z.truckVmax * KMH);
+      if (z.cap) cap = Math.min(cap, z.cap * KMH);
     }
-    return { vm, tm, grade };
+    return { vm, tm, grade, tv, cap };
   }
   noLCAt(s) { for (const z of this.noLC) if (s >= z[0] && s <= z[1]) return true; return false; }
 }
@@ -210,6 +212,7 @@ export const TYPES = {
   car:   { len: 4.6, wid: 1.8, a: 1.5, b: 2.2, T: 1.3, s0: 2.0, vcap: 999, kind: "car" },
   truck: { len: 12,  wid: 2.5, a: 0.75, b: 1.6, T: 1.7, s0: 3.0, vcap: 88, kind: "truck" },
   bus:   { len: 11.5, wid: 2.5, a: 0.9, b: 1.7, T: 1.6, s0: 3.0, vcap: 88, kind: "bus" },
+  ems:   { len: 6.0, wid: 2.1, a: 2.6, b: 3.0, T: 0.8, s0: 2.0, vcap: 135, kind: "car" },
 };
 
 /* ================= 工具 ================= */
@@ -246,8 +249,11 @@ export class Sim {
     this.noise = o.noise ?? 0.15;
     this.courtesy = o.courtesy ?? 0.5;
     this.mainIds = o.main || [];
+    this.ems = [];
+    this.emsYield = true;
     this.onStep = o.onStep || null;
     this.st = {
+      emsLog: [],
       exited: 0, missed: 0, collisions: 0, ttSum: 0, delaySum: 0,
       bySink: {}, bySrc: {}, exitTimes: [], series: [], heat: [], lastSample: -999, lastHeat: -999,
     };
@@ -323,6 +329,22 @@ export class Sim {
     }
     // 大車禁行
     if (v.p.kind !== "car") for (const L of road.truckBan) ok[L] = false;
+    // 出口標示不清：太晚才知道要下交流道
+    if (v.next && road.signDist && deadline > road.signDist && road.midTargets.some((c) => c.to === v.next)) {
+      for (let L = 0; L < n; L++) ok[L] = !!(road.laneSeg(L, v.s) && road.laneSeg(L, Math.min(road.len - 0.5, v.s + 300)));
+      deadline = Infinity;
+    }
+    // 救護車：讓出它所在的車道
+    if (this.ems.length && v.type !== "ems") {
+      for (const e of this.ems) {
+        if (e.road !== road) continue;
+        const d = v.s - e.s;
+        if (d > 0 && d < (this.emsYield ? 220 : 0)) {
+          if (ok.filter(Boolean).length > 1 || !ok[e.lane]) { ok[e.lane] = false; if (e.lcFrom >= 0) ok[e.lcFrom] = false; }
+          if (v.lane === e.lane) deadline = Math.min(deadline, Math.max(30, d));
+        }
+      }
+    }
     if (!ok.some(Boolean)) ok.fill(true);
     const curOk = ok[v.lane];
     if (!curOk) {
@@ -398,6 +420,22 @@ export class Sim {
         if (!wall && depth === 0 && dEnd < 3) v.passing = road;
       }
       if (road.gate && this.t < road.gate.next) wall = true;
+      // 路口淨空：橫向車道上還有車，或路口另一邊沒有空間
+      if (tr && tr.to.box && depth === 0 && !wall && v.passing !== road && dEnd > Math.min(4, v.v * v.v / 8)) {
+        for (const c of tr.to.conflicts) if (c.buckets.some((b) => b.length)) { wall = true; break; }
+        if (!wall && road.keepClear) {
+          const o2 = tr.to.outsByLane[tr.toLane][0];
+          if (o2) {
+            const bk = o2.to.buckets[o2.toLane];
+            const u2 = bk && bk[0];
+            if (u2 && u2.s - u2.len - o2.toS < v.len + 3 && u2.v < 4) wall = true;
+          }
+          // 路口裡同車道已經有車在等
+          const inBox = tr.to.buckets[tr.toLane];
+          if (inBox && inBox.some((w) => w.v < 2)) wall = true;
+        }
+        if (!wall && dEnd < 3) v.passing = road;
+      }
       if (tr && road.yieldEnd && depth === 0 && !v.committed) {
         if (this.yieldOk(v, tr, dEnd)) { if (dEnd < 6 + v.v * 1.2) v.committed = true; }
         else wall = true;
@@ -510,6 +548,8 @@ export class Sim {
     const grade = Math.max(z.grade, z2.grade);
     if (grade > 0 && v.p.kind !== "car") cap = Math.min(cap, (75 - grade * 7) * KMH);
     if (grade > 0 && v.p.kind === "car") cap = Math.min(cap, (115 - grade * 3) * KMH);
+    if (v.p.kind !== "car") cap = Math.min(cap, z.tv, z2.tv);
+    if (v.type !== "ems") cap = Math.min(cap, z.cap, z2.cap);
     v0 = Math.min(v0, cap);
     return { v0, tm: Math.max(z.tm, z2.tm) };
   }
@@ -533,6 +573,7 @@ export class Sim {
     this.t += dt;
     if (this.onStep) this.onStep(this, dt);
 
+    this.ems = vs.filter((v) => v.type === "ems");
     // 分車道排序（變換車道中的車同時佔兩條車道）
     for (const r of net.roads) for (const b of r.buckets) b.length = 0;
     for (const v of vs) {
@@ -743,6 +784,7 @@ export class Sim {
     st.ttSum += tt;
     st.delaySum += Math.max(0, tt - v.dist / v.vff);
     st.exitTimes.push(this.t);
+    if (v.type === "ems") { st.emsLog.push({ t: this.t, tt, ff: v.dist / (120 * KMH) }); if (st.emsLog.length > 8) st.emsLog.shift(); }
     const k = v.road.name || v.road.id;
     const b = st.bySink[k] || (st.bySink[k] = { n: 0, tt: 0 });
     b.n++; b.tt += tt;
@@ -772,8 +814,9 @@ export class Sim {
 
   makeVehicle(road) {
     const rnd = Math.random();
-    const type = road.src.types ? road.src.types() :
+    let type = road.src.types ? road.src.types() :
       rnd < this.busPct ? "bus" : rnd < this.busPct + this.truckPct ? "truck" : "car";
+    if (road.src.nextType) { type = road.src.nextType; road.src.nextType = null; }
     const p = TYPES[type];
     const v = {
       id: this.nid++, p, type, len: p.len, wid: p.wid, road, lane: 0, s: p.len, v: 0, acc: 0,
@@ -788,6 +831,8 @@ export class Sim {
     };
     v.vff = Math.max(5, Math.min(road.vmax * v.vf, p.vcap * KMH));
     if (type === "bus" && road.src.busStops) v.stops = road.src.busStops().map((x) => ({ ...x }));
+    if (type === "car" && road.src.stopper && Math.random() < road.src.stopper.p) { v.stops = road.src.stopper.make(); v.stopper = true; }
+    if (type === "ems") { v.vf = 1.3; v.keepRight = 0; v.politeness = 0; }
     return v;
   }
 
@@ -888,8 +933,22 @@ export class Sim {
       flow: Math.round(st.exitTimes.length * 3600 / Math.min(300, Math.max(30, this.t))),
       missed: st.missed, collisions: st.collisions,
       queue: srcs.reduce((a, s) => a + s.queue, 0),
-      srcs, sinks: st.bySink,
+      srcs, sinks: st.bySink, ems: st.emsLog[st.emsLog.length - 1] || null,
     };
+  }
+
+  /** 直接在某條路上放一台車（環狀道路用） */
+  place(road, lane, s, type = "car", speed = 0) {
+    const src = road.src;
+    if (!road.src) road.src = { flow: 0, queue: 0, entered: 0, nextT: 1e9, enterTimes: [] };
+    const v = this.makeVehicle(road);
+    if (!src) road.src = null;
+    v.type = type; v.p = TYPES[type]; v.len = v.p.len; v.wid = v.p.wid;
+    v.road = road; v.lane = lane; v.s = s; v.v = speed;
+    v.vff = Math.max(5, Math.min(road.vmax * v.vf, v.p.vcap * KMH));
+    v.next = this.route(road, s, v);
+    this.vs.push(v);
+    return v;
   }
 
   /** 給畫面用：車子的位置與方向 */
