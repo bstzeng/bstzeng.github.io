@@ -91,7 +91,11 @@ export class Renderer {
             let type = null, lat;
             if (wl > 0 && wr > 0) { type = r.noLCAt(ss) ? "solid" : "dash"; lat = r.lat(b) + LW / 2; }
             else if (wl > 0) { type = "edgeR"; lat = r.lat(b) - LW / 2 + LW * wl; }
-            else if (wr > 0) { type = b === -1 ? "edgeL" : "edgeR2"; lat = r.lat(b + 1) - LW / 2; }
+            else if (wr > 0) {
+              let leftmost = true;
+              for (let q = 0; q <= b; q++) if (this.laneW(r, q, ss) > 0) { leftmost = false; break; }
+              type = leftmost ? "edgeL" : "edgeR2"; lat = r.lat(b + 1) - LW / 2;
+            }
             if (type !== runType) {
               flush();
               if (type) {
@@ -126,7 +130,7 @@ export class Renderer {
     const px = 1 / z; // 一個像素是幾公尺
 
     this.drawGrid(ctx, px);
-    for (const d of this.net.deco) if (d.type === "street" || d.type === "shoulderline" || d.type === "parking") this.drawDeco(ctx, d, sim, px, true);
+    for (const d of this.net.deco) if (d.type === "street" || d.type === "shoulderline" || d.type === "parking" || d.type === "rail") this.drawDeco(ctx, d, sim, px, true);
 
     // 柏油
     ctx.fillStyle = "#363c47";
@@ -144,12 +148,12 @@ export class Renderer {
 
     this.drawSignals(ctx, sim, px);
     for (const r of this.net.roads) for (const b of r.blocks) if (b.on) this.drawBlock(ctx, r, b, px);
-    for (const d of this.net.deco) if (!["street", "shoulderline", "parking", "tunnel", "fog", "bridge"].includes(d.type)) this.drawDeco(ctx, d, sim, px);
+    for (const d of this.net.deco) if (!["street", "shoulderline", "parking", "rail", "tunnel", "fog", "bridge", "glare"].includes(d.type)) this.drawDeco(ctx, d, sim, px);
 
     // 車輛
     for (const v of sim.vs) this.drawVehicle(ctx, sim, v, px);
 
-    for (const d of this.net.deco) if (["tunnel", "fog", "bridge"].includes(d.type)) this.drawDeco(ctx, d, sim, px);
+    for (const d of this.net.deco) if (["tunnel", "fog", "bridge", "glare"].includes(d.type)) this.drawDeco(ctx, d, sim, px);
 
     this.drawLabels(ctx, sim, px);
 
@@ -238,6 +242,14 @@ export class Renderer {
       this.rect(ctx, q2.x, q2.y, q2.h, 4, 2.4, "#ff8a00");
       this.flash(ctx, q2, px);
       for (let s = b.s0 - 30; s < b.s0; s += 6) cone(s, lat);
+    } else if (b.kind === "debris") {
+      const cols = ["#8a5a2b", "#c48a3a", "#6b6b6b"];
+      for (let i = 0; i < 4; i++) {
+        const q = r.path.at(Math.min(b.s0 + 0.6 + i * 0.7, r.len), lat + ((i * 37) % 5 - 2) * 0.35);
+        this.rect(ctx, q.x, q.y, q.h + i, 1.1, 0.9, cols[i % 3]);
+      }
+      const l = r.path.at(Math.min(b.s0, r.len), -6);
+      this.label(ctx, "📦 掉落物", l.x, l.y, px);
     } else if (b.kind === "park") {
       this.rect(ctx, p.x, p.y, p.h, 4.6, 1.8, "#8a8f99");
       this.rect(ctx, r.path.at(b.s1 - 2, lat).x, r.path.at(b.s1 - 2, lat).y, p.h, 1.2, 1.6, "#5a5f69");
@@ -344,7 +356,7 @@ export class Renderer {
         const cx = d.x + 1.5 + (i % 20) * 3 + 0.5, cy = i < 20 ? d.y + 2.5 : d.y + d.h - 2.5;
         ctx.fillStyle = `hsl(${(i * 47) % 360} 45% 55%)`; ctx.fillRect(cx - 0.8, cy - 2, 1.6, 4);
       }
-      this.label(ctx, "🅿 景點停車場（客滿）", d.x + d.w / 2, d.y - 8, px);
+      this.label(ctx, d.text || "🅿 景點停車場（客滿）", d.x + d.w / 2, d.y - 8, px);
     } else if (d.type === "busstop") {
       const p = d.road.path.at(d.s, d.road.lat(d.road.lanes - 1) + LW / 2 + 1.2);
       ctx.fillStyle = "#4aa3ff"; ctx.fillRect(p.x - 6, p.y - 0.6, 12, 1.2);
@@ -359,6 +371,84 @@ export class Renderer {
       ctx.fillStyle = "#111"; ctx.font = "700 10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(d.text, sx, sy + 8.5);
       ctx.restore();
+    } else if (d.type === "glare") {
+      if (d.zone && d.zone.on === false) return;
+      const r = d.road;
+      const g = ctx.createLinearGradient(r.path.at(d.s0).x, 0, r.path.at(d.s1).x, 0);
+      g.addColorStop(0, "rgba(255,170,60,0)"); g.addColorStop(0.2, "rgba(255,170,60,.38)");
+      g.addColorStop(0.8, "rgba(255,200,90,.45)"); g.addColorStop(1, "rgba(255,170,60,0)");
+      ctx.fillStyle = g;
+      this.band(ctx, r, d.s0, d.s1, -30, r.lat(r.lanes - 1) + 30); ctx.fill();
+      const p = r.path.at((d.s0 + d.s1) / 2, -36);
+      this.label(ctx, "☀ 夕陽正對著擋風玻璃", p.x, p.y, px, { color: "#ffd08a" });
+    } else if (d.type === "camera") {
+      if (d.zone && d.zone.on === false) return;
+      const p = d.road.path.at(d.s, d.road.lat(d.road.lanes - 1) + LW / 2 + 3);
+      ctx.fillStyle = "#e9ecf2"; ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
+      const l = d.road.path.at(d.s, d.road.lat(d.road.lanes - 1) + 11);
+      this.label(ctx, "📷 測速照相 100", l.x, l.y, px, { color: "#ffd23f" });
+    } else if (d.type === "section") {
+      if (d.zone && d.zone.on === false) return;
+      for (const [s, t] of [[d.s0, "📷 區間測速起點"], [d.s1, "📷 區間測速終點"]]) {
+        const l = d.road.path.at(s, d.road.lat(d.road.lanes - 1) + 11);
+        this.label(ctx, t, l.x, l.y, px, { color: "#ffd23f" });
+      }
+      ctx.fillStyle = "rgba(255,210,63,.06)";
+      this.band(ctx, d.road, d.s0, d.s1, -2, d.road.lat(d.road.lanes - 1) + LW / 2 + 2); ctx.fill();
+    } else if (d.type === "booths") {
+      d.roads.forEach((r, i) => {
+        const p = r.path.at(d.s[i], -2.4);
+        this.rect(ctx, p.x, p.y, p.h, 8, 1.2, "#7d8796");
+        const q = r.path.at(d.s[i], -2.4);
+        ctx.fillStyle = "#ffd23f"; ctx.fillRect(q.x - 0.5, q.y - 0.5, 1, 1);
+      });
+      const l = d.roads[0].path.at(d.s[0], -10);
+      this.label(ctx, "🧾 收費站", l.x, l.y, px);
+    } else if (d.type === "place") {
+      const p = d.road.path.at(d.s, d.road.lat(d.road.lanes - 1) + LW / 2 + 8);
+      ctx.fillStyle = "#3a2f55"; ctx.fillRect(p.x - 40, p.y - 3, 80, 14);
+      this.label(ctx, d.text, p.x, p.y + 4, px);
+    } else if (d.type === "market") {
+      const r = d.road;
+      for (let s = d.s0; s < d.s1; s += 6) {
+        const p = r.path.at(s, r.lat(r.lanes - 1) + LW / 2 + 3.5);
+        ctx.fillStyle = `hsl(${(s * 7) % 360} 70% 55%)`; ctx.fillRect(p.x - 2.4, p.y - 1.6, 4.8, 3.2);
+      }
+      const p = r.path.at((d.s0 + d.s1) / 2, r.lat(r.lanes - 1) + 12);
+      this.label(ctx, "🏮 夜市攤位", p.x, p.y, px, { color: "#ffb35c" });
+    } else if (d.type === "rail") {
+      const sig = d.sig, t = sim.t;
+      const st = sig.state("open", t);
+      const y0 = this.cam.y - this.H / this.cam.z, y1 = this.cam.y + this.H / this.cam.z;
+      ctx.fillStyle = "#3b3530"; ctx.fillRect(d.x, y0, d.w, y1 - y0);
+      ctx.strokeStyle = "#9aa0aa"; ctx.lineWidth = Math.max(0.15, px);
+      ctx.beginPath();
+      for (const x of [d.x + 2, d.x + 3.5, d.x + 6.5, d.x + 8]) { ctx.moveTo(x, y0); ctx.lineTo(x, y1); }
+      ctx.stroke();
+      ctx.strokeStyle = "#6b5a48"; ctx.lineWidth = 0.4;
+      ctx.beginPath();
+      for (let y = Math.floor(y0); y < y1; y += 1.2) { ctx.moveTo(d.x + 0.8, y); ctx.lineTo(d.x + d.w - 0.8, y); }
+      ctx.stroke();
+      // 柵欄
+      const down = st !== "G";
+      ctx.strokeStyle = down ? "#ff3b4e" : "#e9ecf2"; ctx.lineWidth = Math.max(0.4, 2 * px);
+      for (const [gx, gy, dir] of [[d.x + d.w + 2, -2 * LW - 2, 1], [d.x - 2, 2 * LW + 1, -1]]) {
+        ctx.beginPath(); ctx.moveTo(gx, gy);
+        if (down) ctx.lineTo(gx, gy + dir * (2 * LW + 1)); else ctx.lineTo(gx - dir * 0.5, gy - dir * 8);
+        ctx.stroke();
+      }
+      // 火車：在柵欄放下的中段通過
+      const cyc = ((t + sig.offset) % sig.cycle + sig.cycle) % sig.cycle;
+      const openEnd = sig.phases[0].dur + sig.Y, closed = sig.phases[1].dur;
+      const k = (cyc - openEnd) / closed;
+      if (k > 0.15 && k < 0.85) {
+        const u = (k - 0.15) / 0.7, ty = -500 + u * 1000;
+        for (let c = 0; c < 6; c++) {
+          ctx.fillStyle = c === 0 ? "#ff8a00" : "#d9dde6";
+          ctx.fillRect(d.x + 1.6, ty - c * 21, d.w / 2 + 0.4, 20);
+        }
+      }
+      if (down && Math.floor(performance.now() / 400) % 2) this.label(ctx, "🚨 噹噹噹 柵欄放下", d.x + d.w / 2, -2 * LW - 14, px, { color: "#ff8a9a" });
     } else if (d.type === "shoulderline") {
       const r = d.road;
       ctx.fillStyle = "#2a2f37";
@@ -377,6 +467,7 @@ export class Renderer {
   }
 
   vColor(v) {
+    if (v.type === "ems") return "#f4f6fb";
     if (this.colorMode === "type") {
       if (v.type === "truck") return "#ff9f1c";
       if (v.type === "bus") return "#4aa3ff";
@@ -393,6 +484,11 @@ export class Renderer {
     const len = Math.max(v.len, minL), wid = Math.max(v.wid, minL * 0.5);
     const c = Math.cos(p.h), s = Math.sin(p.h), z = this.cam.z, d = this.dpr;
     ctx.setTransform(d * z * c, d * z * s, -d * z * s, d * z * c, d * ((p.x - this.cam.x) * z + this.W / 2), d * ((p.y - this.cam.y) * z + this.H / 2));
+    if (v.type === "ems") {
+      ctx.fillStyle = Math.floor(performance.now() / 180) % 2 ? "rgba(255,32,48,.35)" : "rgba(32,96,255,.35)";
+      const g = Math.max(4, 9 * px);
+      ctx.fillRect(-len / 2 - g, -wid / 2 - g, len + g * 2, wid + g * 2);
+    }
     ctx.fillStyle = this.vColor(v);
     ctx.fillRect(-len / 2, -wid / 2, len, wid);
     if (z > 1.5) {
@@ -404,6 +500,14 @@ export class Renderer {
         ctx.fillStyle = v.type === "bus" ? "rgba(10,14,22,.55)" : "rgba(255,255,255,.35)";
         if (v.type === "bus") { ctx.fillRect(-len / 2 + 0.6, -wid / 2 + 0.2, len - 1.2, 0.35); ctx.fillRect(-len / 2 + 0.6, wid / 2 - 0.55, len - 1.2, 0.35); }
         else ctx.fillRect(len / 2 - 2.4, -wid / 2, 0.25, wid);
+      }
+      if (v.type === "ems") {
+        const ph = Math.floor(performance.now() / 180) % 2;
+        ctx.fillStyle = ph ? "#ff2030" : "#2060ff";
+        ctx.fillRect(-0.6, -wid / 2 + 0.15, 1.2, wid / 2 - 0.15);
+        ctx.fillStyle = ph ? "#2060ff" : "#ff2030";
+        ctx.fillRect(-0.6, 0, 1.2, wid / 2 - 0.15);
+        ctx.fillStyle = "#ff2030"; ctx.fillRect(-len / 2 + 1, -0.25, len - 3, 0.5);
       }
       if (v.acc < -1.2) {
         ctx.fillStyle = "#ff2030";

@@ -240,6 +240,7 @@ function updateUI(force) {
     ["入口排隊", `${s.queue} 輛`, s.queue > 5 ? "bad" : ""],
     ["錯過出口", `${s.missed} 輛`],
     ["碰撞", `${s.collisions} 次`, s.collisions ? "bad" : "good"],
+    ...(s.ems ? [["上一台救護車", `${fmtDur(s.ems.tt)}（順暢約 ${fmtDur(s.ems.ff)}）`, s.ems.tt > s.ems.ff * 1.4 ? "bad" : "good"]] : []),
   ].map(([k, v, c]) => `<div class="st ${c || ""}"><small>${k}</small><b>${v}</b></div>`).join("");
 
   let t = `<table><tr><th>入口</th><th>設定</th><th>實際進入</th><th>排隊</th></tr>`;
@@ -283,8 +284,11 @@ function loop(now) {
     }
   }
   if (S.built.follow && S.view === "focus" && !S.userMoved) {
-    const f = S.built.follow(), p = f.road.path.at(Math.min(f.s, f.road.len));
-    R.cam.x += (p.x - R.cam.x) * 0.05; R.cam.y += (p.y + 5 - R.cam.y) * 0.05;
+    const f = S.built.follow(S.sim);
+    if (f) {
+      const p = f.road.path.at(Math.max(0, Math.min(f.s, f.road.len)));
+      R.cam.x += (p.x - R.cam.x) * 0.05; R.cam.y += (p.y + 5 - R.cam.y) * 0.05;
+    }
   }
   R.draw(S.sim);
   S.uiT += dt; S.chartT += dt;
