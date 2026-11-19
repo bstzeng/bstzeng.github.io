@@ -9,11 +9,13 @@ export class Renderer {
     this.ctx = canvas.getContext("2d");
     this.cam = { x: 0, y: 0, z: 1 };
     this.colorMode = "speed";
+    this.alpha = 1;
     this.selected = null;
     this.resize();
   }
   resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // 高解析度螢幕最多用 1.5 倍；太慢的裝置會自動再降到 1 倍
+    const dpr = Math.min(window.devicePixelRatio || 1, this.maxDpr || 1.5);
     const r = this.cv.getBoundingClientRect();
     this.W = Math.max(1, r.width); this.H = Math.max(1, r.height); this.dpr = dpr;
     this.cv.width = Math.round(this.W * dpr); this.cv.height = Math.round(this.H * dpr);
@@ -117,6 +119,18 @@ export class Renderer {
       }
       this.roadGeo.push(geo);
     }
+    // 合併成少數幾個大路徑，一次畫完（比一條一條畫快很多）
+    this.asphalt = new Path2D();
+    this.batches = new Map();
+    for (const g of this.roadGeo) {
+      for (const p of g.asphalt) this.asphalt.addPath(p);
+      for (const ln of g.lines) {
+        const key = `${ln.color}|${ln.dash ? ln.dash.join(",") : ""}|${ln.w}`;
+        let b = this.batches.get(key);
+        if (!b) { b = { color: ln.color, dash: ln.dash, w: ln.w, path: new Path2D() }; this.batches.set(key, b); }
+        b.path.addPath(ln.path);
+      }
+    }
   }
 
   /* ---------- 繪製 ---------- */
@@ -136,13 +150,13 @@ export class Renderer {
     ctx.fillStyle = "#363c47";
     ctx.strokeStyle = "#363c47";
     ctx.lineWidth = 0.3;
-    for (const g of this.roadGeo) for (const p of g.asphalt) { ctx.fill(p); ctx.stroke(p); }
+    ctx.fill(this.asphalt); ctx.stroke(this.asphalt);
     // 車道線
-    for (const g of this.roadGeo) for (const ln of g.lines) {
-      ctx.strokeStyle = ln.color;
-      ctx.lineWidth = Math.max(ln.w, px * 0.8);
-      ctx.setLineDash(ln.dash || []);
-      ctx.stroke(ln.path);
+    for (const b of this.batches.values()) {
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = Math.max(b.w, px * 0.8);
+      ctx.setLineDash(b.dash || []);
+      ctx.stroke(b.path);
     }
     ctx.setLineDash([]);
 
@@ -151,7 +165,13 @@ export class Renderer {
     for (const d of this.net.deco) if (!["street", "shoulderline", "parking", "rail", "tunnel", "fog", "bridge", "glare"].includes(d.type)) this.drawDeco(ctx, d, sim, px);
 
     // 車輛
-    for (const v of sim.vs) this.drawVehicle(ctx, sim, v, px);
+    // 只畫畫面內的車
+    const tl = this.toWorld(-40, -40), br = this.toWorld(this.W + 40, this.H + 40);
+    for (const v of sim.vs) {
+      const p = this.vpose(sim, v);
+      if (p.x < tl.x || p.x > br.x || p.y < tl.y || p.y > br.y) continue;
+      this.drawVehicle(ctx, sim, v, px, p);
+    }
 
     for (const d of this.net.deco) if (["tunnel", "fog", "bridge", "glare"].includes(d.type)) this.drawDeco(ctx, d, sim, px);
 
@@ -159,7 +179,7 @@ export class Renderer {
 
     // 選取的車
     if (this.selected && sim.vs.includes(this.selected)) {
-      const p = sim.pose(this.selected);
+      const p = this.vpose(sim, this.selected);
       ctx.strokeStyle = "#ff2bd6";
       ctx.lineWidth = 2.5 * px;
       ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(this.selected.len * 0.8, 10 * px), 0, Math.PI * 2); ctx.stroke();
@@ -478,8 +498,17 @@ export class Renderer {
     return `hsl(${Math.round(k * 125)} 85% ${55 - (1 - k) * 5}%)`;
   }
 
-  drawVehicle(ctx, sim, v, px) {
-    const p = sim.pose(v);
+  /** 兩個模擬步驟之間做內插，讓車子平滑移動 */
+  vpose(sim, v) {
+    const B = v.pB;
+    if (!B) return sim.pose(v);
+    const A = v.pA || B, a = this.alpha;
+    let dh = B.h - A.h;
+    if (dh > Math.PI) dh -= 2 * Math.PI; else if (dh < -Math.PI) dh += 2 * Math.PI;
+    return { x: A.x + (B.x - A.x) * a, y: A.y + (B.y - A.y) * a, h: A.h + dh * a };
+  }
+
+  drawVehicle(ctx, sim, v, px, p) {
     const minL = 3 * px;
     const len = Math.max(v.len, minL), wid = Math.max(v.wid, minL * 0.5);
     const c = Math.cos(p.h), s = Math.sin(p.h), z = this.cam.z, d = this.dpr;
@@ -528,7 +557,7 @@ export class Renderer {
     const w = this.toWorld(px, py);
     let best = null, bd = Math.max(8, 14 / this.cam.z);
     for (const v of sim.vs) {
-      const p = sim.pose(v);
+      const p = this.vpose(sim, v);
       const d = Math.hypot(p.x - w.x, p.y - w.y);
       if (d < bd) { bd = d; best = v; }
     }
@@ -577,26 +606,41 @@ export function speedColor(kmh) {
   return `hsl(${Math.round(k * 125)} 85% ${45 + k * 10}%)`;
 }
 
+function hslRgb(h, s, l) {
+  s /= 100; l /= 100;
+  const k = (n) => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+  const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+}
+const HEAT_LUT = Array.from({ length: 121 }, (_, v) => { const k = Math.min(1, v / 100); return hslRgb(Math.round(k * 125), 85, 45 + k * 10); });
+
 export function drawHeat(cv, heat, mainLen) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const W = cv.clientWidth, H = cv.clientHeight;
-  cv.width = W * dpr; cv.height = H * dpr;
+  if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
   const ctx = cv.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = "#07060d"; ctx.fillRect(0, 0, W, H);
   if (!heat.length) { ctx.fillStyle = "#8b86a8"; ctx.font = "11px sans-serif"; ctx.fillText("模擬開始後顯示…", 8, H / 2); return; }
   const L = 30, B = 14;
-  const cols = heat.length, nb = heat[0].length;
-  const cw = (W - L) / Math.max(cols, 60), bh = (H - B) / nb;
+  const cols = heat.length, nb = heat[0].length, span = Math.max(cols, 60);
+  // 先畫成一張小圖（每格一個像素），再放大貼上：比一格一格畫快很多
+  const img = new ImageData(span, nb);
+  const d = img.data;
   for (let c = 0; c < cols; c++) {
     const col = heat[c];
     for (let i = 0; i < nb; i++) {
-      const col2 = speedColor(col[i]);
-      if (!col2) continue;
-      ctx.fillStyle = col2;
-      ctx.fillRect(L + c * cw, H - B - (i + 1) * bh, Math.ceil(cw), Math.ceil(bh));
+      const v = col[i];
+      if (v < 0) continue;
+      const k = (nb - 1 - i) * span + c, rgb = HEAT_LUT[Math.min(120, Math.max(0, Math.round(v)))];
+      d[k * 4] = rgb[0]; d[k * 4 + 1] = rgb[1]; d[k * 4 + 2] = rgb[2]; d[k * 4 + 3] = 255;
     }
   }
+  const off = drawHeat.off || (drawHeat.off = document.createElement("canvas"));
+  off.width = span; off.height = nb;
+  off.getContext("2d").putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(off, L, 0, W - L, H - B);
   ctx.fillStyle = "#8b86a8"; ctx.font = "10px sans-serif"; ctx.textAlign = "right";
   ctx.fillText(`${(mainLen / 1000).toFixed(1)}km`, L - 3, 10);
   ctx.fillText("0", L - 3, H - B);
