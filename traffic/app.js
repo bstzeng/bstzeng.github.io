@@ -227,10 +227,18 @@ new ResizeObserver(() => { R.resize(); }).observe($(".stage"));
 const fmtT = (t) => { t = Math.round(t); return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`; };
 const fmtDur = (t) => (t < 60 ? `${Math.round(t)} 秒` : `${Math.floor(t / 60)} 分 ${Math.round(t % 60)} 秒`);
 
+/** 內容有變才更新，減少瀏覽器重新排版 */
+const htmlCache = {};
+function setHTML(sel, html) {
+  if (htmlCache[sel] === html) return;
+  htmlCache[sel] = html;
+  $(sel).innerHTML = html;
+}
+
 function updateUI(force) {
   const sim = S.sim, s = sim.summary();
   $("#clock").textContent = "模擬 " + fmtT(s.t);
-  $("#stats").innerHTML = [
+  setHTML("#stats", [
     ["路網內車輛", `${s.n} 輛`],
     ["平均車速", `${s.speed.toFixed(0)} km/h`, s.speed < 30 ? "bad" : s.speed > 70 ? "good" : ""],
     ["已通過車輛", `${s.exited} 輛`],
@@ -241,7 +249,7 @@ function updateUI(force) {
     ["錯過出口", `${s.missed} 輛`],
     ["碰撞", `${s.collisions} 次`, s.collisions ? "bad" : "good"],
     ...(s.ems ? [["上一台救護車", `${fmtDur(s.ems.tt)}（順暢約 ${fmtDur(s.ems.ff)}）`, s.ems.tt > s.ems.ff * 1.4 ? "bad" : "good"]] : []),
-  ].map(([k, v, c]) => `<div class="st ${c || ""}"><small>${k}</small><b>${v}</b></div>`).join("");
+  ].map(([k, v, c]) => `<div class="st ${c || ""}"><small>${k}</small><b>${v}</b></div>`).join(""));
 
   let t = `<table><tr><th>入口</th><th>設定</th><th>實際進入</th><th>排隊</th></tr>`;
   for (const x of s.srcs) t += `<tr><td>${x.name}</td><td class="n">${x.flow}</td><td class="n">${s.t > 30 ? x.rate : "—"}</td><td class="n ${x.queue > 5 ? "warn" : ""}">${x.queue}</td></tr>`;
@@ -252,7 +260,7 @@ function updateUI(force) {
     for (const [k, v] of sinks.sort((a, b) => b[1].n - a[1].n)) t += `<tr><td>${k}</td><td class="n">${v.n}</td><td class="n">${fmtDur(v.tt / v.n)}</td></tr>`;
     t += `</table>`;
   }
-  $("#tables").innerHTML = t;
+  setHTML("#tables", t);
 
   const v = R.selected;
   if (v && sim.vs.includes(v)) {
@@ -270,9 +278,25 @@ function updateCharts() {
 }
 
 /* ---------- 主迴圈 ---------- */
+/** 記下每台車「上一步」與「這一步」的位置，畫面在兩者之間平滑內插 */
+function snapPoses() {
+  const sim = S.sim;
+  for (const v of sim.vs) {
+    const p = sim.pose(v);
+    v.pA = v.pB || p;
+    v.pB = p;
+  }
+}
+
+const perf = { ema: 16, slow: 0 };
 function loop(now) {
   const dt = Math.min(0.1, (now - S.last) / 1000);
   S.last = now;
+  // 畫面一直跟不上就自動降低解析度
+  perf.ema = perf.ema * 0.95 + dt * 1000 * 0.05;
+  if (perf.ema > 24 && (R.maxDpr || 1.5) > 1 && !document.hidden) {
+    if (++perf.slow > 120) { R.maxDpr = 1; R.resize(); perf.slow = 0; }
+  } else perf.slow = 0;
   if (S.run && S.sim) {
     S.acc += dt * S.speed;
     const t0 = performance.now();
@@ -280,9 +304,14 @@ function loop(now) {
     while (S.acc >= DT && n < 120) {
       S.sim.step(DT);
       S.acc -= DT; n++;
-      if (performance.now() - t0 > 28) { S.acc = Math.min(S.acc, DT); break; }
+      const out = performance.now() - t0 > 28;
+      if (out) S.acc = Math.min(S.acc, DT * 0.99);
+      // 只需要最後兩步的位置來內插
+      if (S.acc < 2 * DT) snapPoses();
+      if (out) break;
     }
   }
+  R.alpha = S.run ? Math.max(0, Math.min(1, S.acc / DT)) : 1;
   if (S.built.follow && S.view === "focus" && !S.userMoved) {
     const f = S.built.follow(S.sim);
     if (f) {
@@ -292,7 +321,7 @@ function loop(now) {
   }
   R.draw(S.sim);
   S.uiT += dt; S.chartT += dt;
-  if (S.uiT > 0.4) { S.uiT = 0; updateUI(); }
+  if (S.uiT > 0.8) { S.uiT = 0; updateUI(); }
   if (S.chartT > 1.5) { S.chartT = 0; updateCharts(); }
   requestAnimationFrame(loop);
 }
