@@ -204,6 +204,28 @@ export class Net {
     for (const r of this.roads) for (const o of r.outs) {
       if (o.toS > 1 && o.to.laneSeg(o.toLane, o.toS - 2)) { o.midMerge = true; o.to.midIn[o.toLane].push(o); }
     }
+    this.computeDist();
+  }
+
+  /** 每條路到每個終點（出口）的最短距離，讓車子可以依目的地找路 */
+  computeDist() {
+    const sinks = this.roads.filter((r) => r.endTargets.length === 0);
+    for (const r of this.roads) r.dist = new Map();
+    const incoming = new Map(this.roads.map((r) => [r, []]));
+    for (const r of this.roads) for (const o of r.outs) incoming.get(o.to).push(o);
+    for (const sk of sinks) {
+      sk.dist.set(sk, 0);
+      const queue = [sk];
+      while (queue.length) {
+        queue.sort((a, b) => a.dist.get(sk) - b.dist.get(sk));
+        const q = queue.shift(), dq = q.dist.get(sk);
+        for (const o of incoming.get(q)) {
+          const d = o.at + Math.max(0, dq - o.toS) + (o.from.lanes > 1 && o.lane !== 0 ? 0 : 0);
+          const cur = o.from.dist.get(sk);
+          if (cur === undefined || d < cur - 1e-6) { o.from.dist.set(sk, d); queue.push(o.from); }
+        }
+      }
+    }
   }
 }
 
@@ -273,6 +295,20 @@ export class Sim {
   /* ---------- 路線 ---------- */
   route(road, s, v) {
     if (road.routeFn) { const r = road.routeFn(v, s); if (r !== undefined) return r; }
+    // 有目的地的車：走最短的路
+    if (v && v.dest && road.dist) {
+      if (road === v.dest) return null;
+      let best = null, bc = Infinity;
+      for (const o of road.outs) {
+        if (o.at < s + (o.at < road.len - 0.5 ? 40 : -1)) continue;
+        if (o.to.closed) continue;
+        const d = o.to.dist.get(v.dest);
+        if (d === undefined) continue;
+        const c = (o.at - s) + Math.max(0, d - o.toS);
+        if (c < bc - 0.01) { bc = c; best = o.to; }
+      }
+      if (best) return best;
+    }
     for (const c of road.midTargets) {
       if (c.at < s + 60) continue;
       const p = road.split[c.to.id] ?? 0;
@@ -343,6 +379,14 @@ export class Sim {
           if (ok.filter(Boolean).length > 1 || !ok[e.lane]) { ok[e.lane] = false; if (e.lcFrom >= 0) ok[e.lcFrom] = false; }
           if (v.lane === e.lane) deadline = Math.min(deadline, Math.max(30, d));
         }
+      }
+    }
+    // 車道建議（例如雙車道圓環：要繞比較遠的走內圈）
+    if (road.laneHint) {
+      const h = road.laneHint(v);
+      if (h) {
+        const m = ok.map((x, L) => x && h.includes(L));
+        if (m.some(Boolean)) { ok.splice(0, ok.length, ...m); deadline = Math.min(deadline, road.len - v.s); }
       }
     }
     if (!ok.some(Boolean)) ok.fill(true);
@@ -436,6 +480,11 @@ export class Sim {
         }
         if (!wall && dEnd < 3) v.passing = road;
       }
+      // 號誌控制的匯入點：環內（或前方）沒有空間就不進去
+      if (tr && !tr.to.box && road.keepClear && depth === 0 && !wall && v.passing !== road && dEnd > Math.min(4, v.v * v.v / 8)) {
+        const room = this.scan(v, tr.to, tr.toLane, tr.toS, 0, 40, 1, null);
+        if (room.g < v.len + 3 && room.vl < 3) wall = true;
+      }
       if (tr && road.yieldEnd && depth === 0 && !v.committed) {
         if (this.yieldOk(v, tr, dEnd)) { if (dEnd < 6 + v.v * 1.2) v.committed = true; }
         else wall = true;
@@ -459,6 +508,9 @@ export class Sim {
         const w = lastAtOrBefore(bk, sb.at + 0.01, v);
         if (!w || w.next !== sb.to || w.lane !== sb.lane) continue;
         if (sb.from.yieldEnd && !w.committed && !road.yieldEnd) continue;
+        // 對方正在等紅燈：不用禮讓它
+        const ls = sb.from.laneSignal && sb.from.laneSignal[sb.lane];
+        if (ls && ls.sig.state(ls.group, this.t) !== "G" && w.passing !== sb.from) continue;
         const r = sb.at - w.s;
         if (r > 120) continue;
         if (r < dEnd || (Math.abs(r - dEnd) < 0.01 && w.id < v.id)) {
@@ -495,6 +547,9 @@ export class Sim {
   }
 
   yieldOk(v, tr, dEnd) {
+    // 匯入後前面要有空間（不然會卡在路口中間，大家互等）
+    const room = this.scan(v, tr.to, tr.toLane, tr.toS, 0, 40, 1, null);
+    if (room.g < v.len + 3 && room.vl < 3) return false;
     const tb = tr.to.buckets[tr.toLane];
     for (const w of tb) {
       if (w.s > tr.toS + 40) break;
@@ -600,6 +655,8 @@ export class Sim {
       if (v.brakeUntil && this.t < v.brakeUntil) a = Math.min(a, -4);
       v.acc = a; v.gmin = r.g;
       if (v.v < 0.3) v.stuck += dt; else v.stuck = 0;
+      // 決定要插進去卻一直停著：放棄，讓幹道的車先走（避免互相等待）
+      if (v.committed && v.stuck > 6) { v.committed = false; v.stuck = 0; }
     }
 
     // 變換車道
@@ -830,6 +887,14 @@ export class Sim {
       hue: Math.floor(Math.random() * 360),
     };
     v.vff = Math.max(5, Math.min(road.vmax * v.vf, p.vcap * KMH));
+    const ds = road.src.dests;
+    if (ds && ds.length) {
+      let tot = 0;
+      for (const d of ds) tot += d.w;
+      let r = Math.random() * tot;
+      for (const d of ds) { r -= d.w; if (r <= 0) { v.dest = d.road; break; } }
+      if (!v.dest) v.dest = ds[ds.length - 1].road;
+    }
     if (type === "bus" && road.src.busStops) v.stops = road.src.busStops().map((x) => ({ ...x }));
     if (type === "car" && road.src.stopper && Math.random() < road.src.stopper.p) { v.stops = road.src.stopper.make(); v.stopper = true; }
     if (type === "ems") { v.vf = 1.3; v.keepRight = 0; v.politeness = 0; }
