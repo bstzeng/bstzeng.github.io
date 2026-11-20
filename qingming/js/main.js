@@ -53,6 +53,9 @@ function followShadow(x, z) {
 const PITCH = THREE.MathUtils.degToRad(44);       // 畫卷的俯視角
 const VIEW_H = 80;                                // 畫面高度（公尺）
 const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 3000);
+ortho.matrixWorldAutoUpdate = false;            // 視圖矩陣自己算（含斜投影錯切）
+const SHEAR = new THREE.Matrix4();
+const OBLIQUE = params.has("k") ? +params.get("k") : 1.1;   // 錯切強度：往北 1 公尺，畫面往右 k 公尺
 const persp = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.2, 6000);
 let camera = ortho;
 // 畫面中線沿著畫卷的走向（汴河斜斜穿過畫面）
@@ -68,7 +71,15 @@ function placeOrtho() {
   const x = pan.x, z = zAt(x);
   ortho.position.set(x, P.LAND + Math.sin(PITCH) * 1000, z + Math.cos(PITCH) * 1000);
   ortho.up.set(0, 1, 0);
+  ortho.matrixWorldAutoUpdate = true;
+  ortho.updateMatrixWorld(true);
   ortho.lookAt(x, P.LAND, z);
+  // 界畫的斜投影：正面保持水平、垂直線保持垂直，往深處（北）的線斜斜往右上走。
+  // 做法是在視圖矩陣裡加一個「依深度水平錯切」：x' = x - k·(z - z0)。只影響畫前模式，場景本身不動。
+  ortho.updateMatrixWorld(true);
+  ortho.matrixWorldAutoUpdate = false;
+  SHEAR.set(1, 0, -OBLIQUE, OBLIQUE * z, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+  ortho.matrixWorldInverse.multiply(SHEAR);
 }
 
 /* ---------------- 繪畫效果（絹本設色） ---------------- */
