@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#2b2219">
+  <title>溪山行旅 // NEON LAB</title>
+  <meta name="description" content="以中國古典山水市集畫卷為靈感的 3D 場景：虹橋、渡口、烏篷船、市集、高台大殿與青綠遠山。可以環繞全景、步行探索、搭船遊河。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": { "three": "../lib/three.module.min.js", "three/addons/": "../lib/jsm/" } }
+  </script>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="paper" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <header class="top">
+    <a class="back" href="../">← 首頁</a>
+    <h1 class="title"><span>溪山行旅</span></h1>
+    <nav class="tabs">
+      <button id="tabOrbit">環繞全景</button>
+      <button id="tabWalk">步行探索</button>
+      <button id="tabBoat">搭船遊河</button>
+      <button id="tabMap">輿圖</button>
+    </nav>
+  </header>
+
+  <div id="loading">
+    <div class="seal">溪山</div>
+    <p id="loadmsg">展開畫卷…</p>
+    <div class="bar"><i id="loadbar"></i></div>
+  </div>
+
+  <div id="menu" hidden>
+    <div class="scroll">
+      <h2>溪山行旅</h2>
+      <p class="sub">晨霧初散，河上虹橋橫臥，渡口船來船往，市集正熱鬧；高台大殿在右上方俯看整座市鎮。</p>
+      <div class="entries">
+        <button id="bOrbit"><b>環繞全景</b><small>從河對岸高處看整幅畫卷</small></button>
+        <button id="bWalk"><b>步行探索</b><small>從門樓出發，過虹橋、逛市集、上大殿</small></button>
+        <button id="bBoat"><b>搭船遊河</b><small>坐烏篷船穿過虹橋，到上游再回來</small></button>
+      </div>
+      <p class="keys">電腦：WASD 走路、拖曳看四周、Shift 快跑、E 上下船、M 地圖<br>平板：左下角搖桿走路、右邊拖曳看四周</p>
+    </div>
+  </div>
+
+  <p id="place"></p>
+  <button id="prompt" hidden></button>
+  <p id="hint"></p>
+  <canvas id="minimap"></canvas>
+  <div id="joy" aria-hidden="true"><i></i></div>
+
+  <div id="bigmap" hidden>
+    <div class="mapbox">
+      <h3>溪山行旅輿圖 <small>（步行時點地圖可以直接走到那裡）</small></h3>
+      <canvas id="bigmapc"></canvas>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
