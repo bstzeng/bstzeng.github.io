@@ -6,7 +6,7 @@ import { Batch, M, box, cyl, lathe, rod, tube, surface, roof } from "./geo.js";
  * 船身：u 沿船長（0 船尾 → 1 船頭），v 從龍骨到舷緣
  * 回傳舷緣高度函式等，給上面的結構用
  */
-function hull(b, { L, B, D, draft = 0.45, rise = 0.55, bowUp = 1.0 }) {
+export function hull(b, { L, B, D, draft = 0.45, rise = 0.55, bowUp = 1.0 }) {
   const half = (u) => (B / 2) * (0.12 + 0.88 * Math.pow(Math.sin(Math.PI * u), 0.5));
   const sheer = (u) => D + rise * Math.pow(Math.abs(2 * u - 1), 2.2) * (u > 0.5 ? bowUp : 0.8);
   const bottom = (u) => -draft * (0.25 + 0.75 * Math.pow(Math.sin(Math.PI * u), 0.6));
@@ -40,7 +40,7 @@ function hull(b, { L, B, D, draft = 0.45, rise = 0.55, bowUp = 1.0 }) {
   return { half, sheer, X, deckY };
 }
 
-function rope(b, pts, r = 0.025) { b.add("rope", tube(pts, r, pts.length * 6, 4)); }
+export function rope(b, pts, r = 0.025) { b.add("rope", tube(pts, r, pts.length * 6, 4)); }
 
 /** 烏篷船（客船） */
 export function wupeng(opts = {}) {

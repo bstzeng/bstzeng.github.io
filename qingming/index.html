@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#3a2a1c">
+  <title>清明上河圖 // NEON LAB</title>
+  <meta name="description" content="以《清明上河圖》為題的 3D 街道：郊野、汴河、虹橋、街市、城門、城內，人、驢、駱駝、轎子、船都在動。可以站在畫前左右捲動看活的畫卷，也能走進畫裡。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": { "three": "../lib/three.module.min.js", "three/addons/": "../lib/jsm/" } }
+  </script>
+</head>
+<body data-mode="paint">
+  <canvas id="c"></canvas>
+  <div class="paper" aria-hidden="true"></div>
+
+  <!-- 畫卷的裱褙：上下錦邊、左右天杆 -->
+  <div class="mount" aria-hidden="true"><i class="brocade top"></i><i class="brocade bot"></i></div>
+
+  <header class="top">
+    <a class="back" href="../">← 首頁</a>
+    <h1 class="title"><span>清明上河圖</span></h1>
+    <nav class="tabs">
+      <button id="toPaint">畫前觀賞</button>
+      <button id="toWalk">走進畫中</button>
+      <button id="pFx" class="on" title="繪畫質感開關">絹本</button>
+    </nav>
+  </header>
+
+  <aside id="section" aria-live="polite"><b id="secName"></b><span id="secNote"></span></aside>
+
+  <div id="paintbar">
+    <button id="pR" aria-label="往右（往郊野）">◀</button>
+    <canvas id="strip" title="點或拖曳，跳到畫卷的那一段"></canvas>
+    <button id="pL" aria-label="往左（往城內）">▶</button>
+    <button id="pAuto">▶ 展卷</button>
+  </div>
+
+  <div id="loading">
+    <div class="seal">清明</div>
+    <p id="loadmsg">展開畫卷…</p>
+    <div class="bar"><i id="loadbar"></i></div>
+  </div>
+
+  <div id="menu" hidden>
+    <div class="scroll">
+      <h2>清明上河圖</h2>
+      <p class="sub">清明時節的汴京城外：郊野驢隊進城、汴河漕船往來、大船放倒桅杆穿過虹橋、橋上人群驚呼，街市店鋪、彩樓歡門、城門駱駝隊，一路到城內十字街。<br>畫裡的每個人都在動。</p>
+      <div class="entries">
+        <button id="bPaint"><b>畫前觀賞</b><small>站在畫卷前，只能左右捲動，看一幅活的畫（從右邊郊野開始，往左讀）</small></button>
+        <button id="bWalk"><b>走進畫中</b><small>第一人稱走在街上、走上虹橋、穿過城門</small></button>
+      </div>
+      <p class="keys">畫前：拖曳／滾輪／← → 捲動，空白鍵自動展卷，下方長條可以跳段落<br>畫中：WASD 走路、拖曳看四周、Shift 快跑；平板用左下搖桿</p>
+    </div>
+  </div>
+
+  <p id="place"></p>
+  <p id="hint"></p>
+  <div id="joy" aria-hidden="true"><i></i></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
