@@ -136,6 +136,8 @@ function signs(group, P, list) {
 
 /* ---------------- 各種房子 ---------------- */
 export function buildBuilding(b, group, B, ground) {
+  // B.plain：民間樸素屋頂（翹角很小、沒有脊獸），給清明上河圖用
+  const RF = (o) => (B.plain ? { ...o, lift: Math.min(o.lift ?? 0.9, 0.15), caps: false, ridgeH: 0.3, type: o.type === "xieshan" ? (B.roofType || "xieshan") : o.type, H: o.H * 0.82 } : o);
   const P = M([B.x, ground, B.z], [0, B.rot, 0]);
   const { w, d } = B;
   const r = rng(B.x * 13 + B.z * 7);
@@ -151,12 +153,12 @@ export function buildBuilding(b, group, B, ground) {
     if (B.type === "two") {
       // 樓板、平座欄杆、腰簷
       b.add("woodDark", box(w + 1.6, 0.3, d + 1.6), M([0, roofY + 0.1, 0]), P);
-      roof(b, { ex: w / 2 + 1.3, ez: d / 2 + 1.3, H: 1.6, type: "pent", ring: 0.42, lift: 0.5, caps: false }, P.clone().multiply(M([0, roofY - 0.85, 0])));
+      roof(b, RF({ ex: w / 2 + 1.3, ez: d / 2 + 1.3, H: 1.6, type: "pent", ring: 0.42, lift: 0.5, caps: false }), P.clone().multiply(M([0, roofY - 0.85, 0])));
       railing(b, P, [-w / 2 - 0.6, d / 2 + 0.65], [w / 2 + 0.6, d / 2 + 0.65], roofY + 0.25, 0.85, "red", 1.4);
       const F2 = frame(b, P, { w: w - 0.6, d: d - 0.6, colH: 2.9, y0: roofY + 0.25, nx, front: "door", side: "window", backSide: "window", r: 0.16 });
       roofY = F2.top;
     }
-    roof(b, { ex: w / 2 + 1.4, ez: d / 2 + 1.5, H: d * 0.36 + 0.6, type: B.type === "ware" ? "gable" : "xieshan", lift: B.type === "ware" ? 0.3 : 0.8 }, P.clone().multiply(M([0, roofY, 0])));
+    roof(b, RF({ ex: w / 2 + 1.4, ez: d / 2 + 1.5, H: d * 0.36 + 0.6, type: B.type === "ware" ? "gable" : "xieshan", lift: B.type === "ware" ? 0.3 : 0.8 }), P.clone().multiply(M([0, roofY, 0])));
     const sg = [];
     if (B.sign) {
       sg.push({ text: B.sign + (B.type === "two" ? "樓" : "鋪"), p: [0, F.top - 0.05, d / 2 + 0.2], w: 2.4, h: 0.6, vertical: false, bg: "#1f3a33", fg: "#e9d9a6" });
@@ -182,12 +184,12 @@ export function buildBuilding(b, group, B, ground) {
     const front = Array.from({ length: nx }, (_, i) => (i === Math.floor(nx / 2) ? "door" : "window"));
     const F = frame(b, P, { w, d, colH: B.type === "yamen" ? 4.4 : 3.4, y0: ph, nx, front, side: "wall", backSide: "wall", r: 0.18, brackets: B.type === "yamen" });
     if (B.type === "yamen") {
-      roof(b, { ex: w / 2 + 1.6, ez: d / 2 + 1.7, H: d * 0.38 + 0.8, type: "xieshan", lift: 0.9 }, P.clone().multiply(M([0, F.top, 0])));
+      roof(b, RF({ ex: w / 2 + 1.6, ez: d / 2 + 1.7, H: d * 0.38 + 0.8, type: "xieshan", lift: 0.9 }), P.clone().multiply(M([0, F.top, 0])));
       signs(group, P, [{ text: "明鏡高懸", p: [0, F.top - 0.1, d / 2 + 0.25], w: 3.2, h: 0.7, vertical: false, bg: "#1b2b4a", fg: "#e2c46a" }]);
       for (const s of [-1, 1]) b.add("stoneLight", lathe([[0, 0], [0.5, 0], [0.5, 0.5], [0.35, 0.6], [0.4, 1.2], [0.25, 1.5], [0, 1.6]], 8), M([s * 2.6, 0, d / 2 + 3.2]), P);
     } else {
       // 硬山：兩端山牆
-      roof(b, { ex: w / 2 + 0.5, ez: d / 2 + 1.2, H: d * 0.4, type: "gable", lift: 0.2 }, P.clone().multiply(M([0, F.top, 0])));
+      roof(b, RF({ ex: w / 2 + 0.5, ez: d / 2 + 1.2, H: d * 0.4, type: "gable", lift: 0.2 }), P.clone().multiply(M([0, F.top, 0])));
       for (const s of [-1, 1]) {
         const sp = surface(1, 8, (u, v) => { const z = -d / 2 - 1.2 + (d + 2.4) * u; const hh = (d * 0.4) * Math.pow(Math.max(0, (d / 2 + 1.2 - Math.abs(z)) / (d / 2 + 1.2)), 1.55); return [s * (w / 2 + 0.25), F.top + hh * v, z]; });
         b.add("plaster", sp, null, P);
@@ -197,7 +199,7 @@ export function buildBuilding(b, group, B, ground) {
   }
   if (B.type === "shed") {
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.add("bamboo", rod([sx * w / 2, 0, sz * d / 2], [sx * w / 2, 2.8, sz * d / 2], 0.08, 0.07), null, P);
-    roof(b, { ex: w / 2 + 0.8, ez: d / 2 + 0.8, H: 1.4, type: "gable", lift: 0.1, caps: false }, P.clone().multiply(M([0, 2.8, 0])));
+    roof(b, RF({ ex: w / 2 + 0.8, ez: d / 2 + 0.8, H: 1.4, type: "gable", lift: 0.1, caps: false }), P.clone().multiply(M([0, 2.8, 0])));
     // 長凳與茶桌
     for (const z of [-1.2, 1.2]) b.add("woodGrain", box(w * 0.7, 0.08, 0.4), M([0, 0.45, z]), P);
     b.add("woodGrain", box(w * 0.5, 0.06, 1.0), M([0, 0.75, 0]), P);
@@ -209,13 +211,13 @@ export function buildBuilding(b, group, B, ground) {
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) column(b, P, sx * w / 2, sz * d / 2, 0.6, 3.2, 0.17);
     for (const [a, c] of [[[-w / 2, d / 2], [-1.1, d / 2]], [[1.1, d / 2], [w / 2, d / 2]], [[-w / 2, -d / 2], [w / 2, -d / 2]], [[-w / 2, -d / 2], [-w / 2, d / 2]], [[w / 2, -d / 2], [w / 2, d / 2]]]) railing(b, P, a, c, 0.6, 0.6, "red", 1.2, true);
     b.add("green", box(w + 0.3, 0.35, 0.25), M([0, 4.0, d / 2]), P); b.add("green", box(w + 0.3, 0.35, 0.25), M([0, 4.0, -d / 2]), P);
-    roof(b, { ex: w / 2 + 1.3, ez: d / 2 + 1.3, H: 2.6, type: "xieshan", lift: 0.9 }, P.clone().multiply(M([0, 4.25, 0])));
+    roof(b, RF({ ex: w / 2 + 1.3, ez: d / 2 + 1.3, H: 2.6, type: "xieshan", lift: 0.9 }), P.clone().multiply(M([0, 4.25, 0])));
     return;
   }
   if (B.type === "side") {
     platform(b, P, w + 1, d + 1, 0.8, { stepsW: 3 });
     const F = frame(b, P, { w, d, colH: 4.2, y0: 0.8, nx: 3, front: ["window", "door", "window"], side: "wall", backSide: "wall", r: 0.22, brackets: true });
-    roof(b, { ex: w / 2 + 1.7, ez: d / 2 + 1.8, H: 3.4, type: "xieshan", lift: 1.0 }, P.clone().multiply(M([0, F.top, 0])));
+    roof(b, RF({ ex: w / 2 + 1.7, ez: d / 2 + 1.8, H: 3.4, type: "xieshan", lift: 1.0 }), P.clone().multiply(M([0, F.top, 0])));
     return;
   }
   if (B.type === "gate") { gateTower(b, group, P, B); return; }
@@ -244,10 +246,10 @@ function gateTower(b, group, P, B) {
   b.add("green", box(w + 0.6, 0.5, 0.4), M([0, top, -d / 2 + 0.4]), P);
   for (let x = -w / 2; x <= w / 2 + 0.01; x += w / 6) { bracket(b, P, x, d / 2 - 0.4, top + 0.25, 1.1, 0); bracket(b, P, x, -d / 2 + 0.4, top + 0.25, 1.1, 0); }
   // 重簷
-  roof(b, { ex: w / 2 + 2.0, ez: d / 2 + 2.0, H: 2.2, type: "pent", ring: 0.5, lift: 1.0 }, P.clone().multiply(M([0, top + 1.0, 0])));
+  roof(b, RF({ ex: w / 2 + 2.0, ez: d / 2 + 2.0, H: 2.2, type: "pent", ring: 0.5, lift: 1.0 }), P.clone().multiply(M([0, top + 1.0, 0])));
   b.add("plaster", box(w - 1.6, 1.8, d - 1.4), M([0, top + 2.4, 0]), P);
   for (const x of [-w / 2 + 0.8, -w * 0.15, w * 0.15, w / 2 - 0.8]) for (const z of [-d / 2 + 0.7, d / 2 - 0.7]) b.add("red", cyl(0.2, 0.2, 2.0, 8), M([x, top + 2.4, z]), P);
-  roof(b, { ex: w / 2 + 1.4, ez: d / 2 + 1.6, H: 3.2, type: "xieshan", lift: 1.2 }, P.clone().multiply(M([0, top + 3.4, 0])));
+  roof(b, RF({ ex: w / 2 + 1.4, ez: d / 2 + 1.6, H: 3.2, type: "xieshan", lift: 1.2 }), P.clone().multiply(M([0, top + 3.4, 0])));
   signs(group, P, [
     { text: "溪山", p: [0, top + 2.4, d / 2 - 0.62], w: 2.6, h: 1.1, vertical: false, bg: "#18304a", fg: "#e2c46a" },
     { text: "溪山", p: [0, top + 2.4, -d / 2 + 0.62], w: 2.6, h: 1.1, vertical: false, bg: "#18304a", fg: "#e2c46a", r: [0, Math.PI, 0] },
@@ -286,12 +288,12 @@ function greatHall(b, group, P, B) {
   b.add("green", box(0.3, 0.4, d + 5.6), M([w / 2 + 2.6, base + colH - 0.4, 0]), P);
   // 下簷（重簷的下層）
   const y1 = F.top - 0.3;
-  roof(b, { ex: w / 2 + 4.6, ez: d / 2 + 4.6, H: 4.2, type: "pent", ring: 0.5, lift: 1.4, res: 0.9 }, P.clone().multiply(M([0, y1, 0])));
+  roof(b, RF({ ex: w / 2 + 4.6, ez: d / 2 + 4.6, H: 4.2, type: "pent", ring: 0.5, lift: 1.4, res: 0.9 }), P.clone().multiply(M([0, y1, 0])));
   // 上層身（承托上簷）
   const w2 = w - 6, d2 = d - 6, yb = y1 + 1.9;
   b.add("woodDark", box(w2 + 0.4, 0.3, d2 + 0.4), M([0, yb, 0]), P);
   const F2 = frame(b, P, { w: w2, d: d2, colH: 3.2, y0: yb, nx: 7, nz: 3, front: "window", side: "window", backSide: "window", r: 0.3, brackets: true, inset: 0 });
-  roof(b, { ex: w2 / 2 + 4.2, ez: d2 / 2 + 4.2, H: 7.2, type: "xieshan", lift: 1.6, res: 0.9, ridgeH: 0.9 }, P.clone().multiply(M([0, F2.top - 0.2, 0])));
+  roof(b, RF({ ex: w2 / 2 + 4.2, ez: d2 / 2 + 4.2, H: 7.2, type: "xieshan", lift: 1.6, res: 0.9, ridgeH: 0.9 }), P.clone().multiply(M([0, F2.top - 0.2, 0])));
   signs(group, P, [{ text: "溪山殿", p: [0, F2.top - 1.2, d2 / 2 + 0.3], w: 4.2, h: 1.3, vertical: false, bg: "#14294a", fg: "#e6c25f" }]);
 }
 

@@ -92,7 +92,7 @@ const PaintShader = {
       float edge = smoothstep(0.12, 0.5, length(vec2(gx, gy)));
       // 設色：降飽和、偏赭黃，畫在絹上（相乘）
       float l = lum(c);
-      vec3 tone = mix(vec3(l), c, 0.62) * vec3(1.02, 0.96, 0.84);
+      vec3 tone = mix(vec3(l), c, 0.3) * vec3(1.03, 0.95, 0.80);
       tone = pow(tone, vec3(0.9));
       vec3 col = uSilk * mix(vec3(1.0), tone * 1.32, 0.86);
       // 絹紋、舊漬（跟著畫卷一起捲動）
@@ -102,7 +102,7 @@ const PaintShader = {
       float stain = noise(sp * 0.003 + 3.1) * 0.6 + noise(sp * 0.009) * 0.4;
       col *= 0.95 + grain * 0.07 + weave * 0.012;
       col *= mix(1.0, 0.94, smoothstep(0.62, 0.9, stain));
-      col = mix(col, vec3(0.17, 0.13, 0.10), edge * 0.6);
+      col = mix(col, vec3(0.16, 0.12, 0.09), edge * 0.72);
       // 上方淡入雲霧，像畫卷的留白
       float top = smoothstep(0.70, 0.98, vUv.y) * uMist;
       float bot = smoothstep(0.10, 0.0, vUv.y) * uMist * 0.6;

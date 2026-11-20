@@ -75,9 +75,9 @@ export const roads = [
   { id: "near", name: "汴河南岸", w: 6, kind: "earth", pts: spline(bank(false, 30, bs - 22, 36, 10).concat([[bridgeS.x + bridge.ax * 6, bridgeS.z + bridge.az * 6]]), 3) },
   { id: "towpath", name: "縴道", w: 3.2, kind: "earth", pts: spline(bank(true, 40, bs - 30, 24, 10), 3) },
   { id: "bridge", name: "虹橋", w: 7, kind: "none", pts: [[bridgeN.x - bridge.ax * 8, bridgeN.z - bridge.az * 8], [bridgeS.x + bridge.ax * 6, bridgeS.z + bridge.az * 6]] },
-  { id: "street", name: "城外大街", w: 8, kind: "stone", pts: spline([[bridgeS.x + bridge.ax * 6, bridgeS.z + bridge.az * 6], [-40, 32], [-110, 22], [-200, 10], [-300, 4], [gate.x + gate.dx, 4], [gate.x - gate.dx, 4], [-460, 4], [-620, 4]], 3) },
+  { id: "street", name: "城外大街", w: 8, kind: "stone", pts: spline([[bridgeS.x + bridge.ax * 6, bridgeS.z + bridge.az * 6], [-40, 36], [-82, 60], [-132, 32], [-178, 6], [-226, 30], [-272, 10], [-305, 4], [gate.x + gate.dx, 4], [gate.x - gate.dx, 4], [-425, 4], [-458, 22], [-490, 4], [-528, -18], [-572, 6], [-620, -10]], 3) },
   { id: "far", name: "北岸小路", w: 4, kind: "earth", pts: spline([[bridgeN.x - bridge.ax * 8, bridgeN.z - bridge.az * 8], [-30, -60], [-90, -80], [-120, -130]], 3) },
-  { id: "cross", name: "城內十字街", w: 7, kind: "stone", pts: spline([[-490, 90], [-490, 4], [-490, -110]], 3) },
+  { id: "cross", name: "城內十字街", w: 7, kind: "stone", pts: spline([[-452, 96], [-472, 50], [-490, 4], [-512, -50], [-540, -112]], 3) },
   { id: "bankst", name: "河街", w: 4, kind: "stone", pts: spline(bank(false, bs + 12, bs + 150, 26, 8), 3) },
 ];
 export const roadLines = roads.map((r) => ({ ...r, line: new Line(r.pts, 20) }));
@@ -90,9 +90,11 @@ export const plaques = [];          // 自訂招牌 {text, x, z, y, rot, w, h, v
 export const caiLou = [];           // 彩樓歡門
 (() => {
   const r = rng(23);
-  const put = (b) => buildings.push({ w: 11, d: 8, rot: 0, ...b });
+  // 畫裡的房子都是民間樸素的屋頂，斜斜地排著；稍微不整齊
+  const put = (b) => buildings.push({ w: 11, d: 8, rot: 0, plain: b.type !== "yamen", roofType: r() < 0.5 ? "gable" : "xieshan", ...b, rot: (b.rot || 0) + (b.type === "yamen" ? 0 : (r() - 0.5) * 0.16) });
+  const hits = (x, z, w, d) => buildings.some((b) => Math.hypot(b.x - x, b.z - z) < (Math.max(b.w, b.d) + Math.max(w, d)) * 0.5 + 0.5);
   // 郊野茅屋
-  for (const [x, z, rot] of [[575, -10, 0.2], [540, -55, -0.1], [505, -20, 0.35], [408, -18, 0.1], [600, 80, Math.PI]]) put({ type: "house", thatch: true, x, z, rot, w: 10, d: 7, name: "農舍" });
+  for (const [x, z, rot] of [[575, -10, 0.6], [540, -55, -0.5], [505, -20, 0.75], [408, -18, 0.55], [600, 80, Math.PI - 0.6]]) put({ type: "house", thatch: true, x, z, rot, w: 10, d: 7, name: "農舍" });
   put({ type: "shed", thatch: true, x: 352, z: 64, rot: Math.PI * 0.85, w: 9, d: 6, name: "路邊茶棚" });
   // 汴河南岸：面向河的酒樓茶肆
   const near = road("near").line;
@@ -125,6 +127,7 @@ export const caiLou = [];           // 彩樓歡門
       const off = side * (front ? 11.5 : 12);
       const x = p.x + p.nx * off, z = p.z + p.nz * off;
       const t = front ? (r() < 0.6 ? "shop" : "shed") : r() < 0.45 ? "two" : "shop";
+      if (hits(x, z, front ? 10 : 12, front ? 6.5 : 9)) continue;
       put({ type: t, x, z, rot: Math.atan2(-p.nx * side, -p.nz * side), w: front ? 10 + Math.round(r() * 2) : 12 + Math.round(r() * 3), d: front ? 6.5 : 9, name: p.x < gate.x ? ["醫鋪", "茶坊", "酒肆", "香藥鋪", "絹鋪"][k % 5] : names[k % names.length] });
       k++;
     }
@@ -136,7 +139,7 @@ export const caiLou = [];           // 彩樓歡門
   const zt = buildings.find((b) => b.x < -500 && b.z > 0);
   if (zt) { zt.name = "趙太丞家"; }
   // 城內十字街兩側
-  for (const z of [-60, -90, 50, 80]) for (const side of [-1, 1]) put({ type: r() < 0.5 ? "two" : "shop", x: -490 + side * 12, z, rot: side > 0 ? -Math.PI / 2 : Math.PI / 2, name: ["茶坊", "說書場", "綵帛鋪", "酒肆"][Math.floor(r() * 4)] });
+  { const L = road("cross").line; for (const s0 of [22, 44, 140, 162, 184]) for (const side of [-1, 1]) { const p = L.at(s0), x = p.x + p.nx * side * 12, z = p.z + p.nz * side * 12; if (!hits(x, z, 11, 8)) put({ type: r() < 0.5 ? "two" : "shop", x, z, rot: Math.atan2(-p.nx * side, -p.nz * side), name: ["茶坊", "說書場", "綵帛鋪", "酒肆"][Math.floor(r() * 4)] }); } }
   // 城內寺院門
   put({ type: "yamen", x: -560, z: -50, rot: 0, w: 16, d: 10, name: "寺院" });
   // ---- 補滿畫面：北岸橋頭街、街後第二排、郊野村落、城內巷弄 ----
@@ -170,8 +173,8 @@ export const caiLou = [];           // 彩樓歡門
   along("towpath", 20, 390, 30, 16, { sides: [sideSign > 0 ? 1 : -1, sideSign > 0 ? -1 : 1], type: () => (r() < 0.6 ? "ware" : "house"), name: (t) => (t === "ware" ? "倉房" : "民居"), skip: 0.45, jit: 4 });
   along("country", 10, 360, 34, 18, { type: () => (r() < 0.75 ? "house" : "shed"), name: () => "農舍", thatch: true, skip: 0.45, jit: 10, w: () => 8 + r() * 3, d: () => 6 + r() * 2 });
   along("cross", 10, 200, 14, 24, { type: () => (r() < 0.5 ? "two" : "house"), name: () => "民居", skip: 0.15 });
-  for (let i = 0; i < 18; i++) { const x = -610 + r() * 230, z = -140 + r() * 250, w = 10 + r() * 4; if (free(x, z, w, w)) put({ type: r() < 0.4 ? "two" : "house", x, z, rot: Math.round(r() * 3) * Math.PI / 2, w, d: 8, name: "民居" }); }
-  for (let i = 0; i < 18; i++) { const x = 360 + r() * 270, z = -120 + r() * 230; if (free(x, z, 10, 10)) put({ type: "house", thatch: true, x, z, rot: (r() - 0.5) * 0.8, w: 8 + r() * 2, d: 6, name: "農舍" }); }
+  for (let i = 0; i < 18; i++) { const x = -610 + r() * 230, z = -140 + r() * 250, w = 10 + r() * 4; if (free(x, z, w, w)) put({ type: r() < 0.4 ? "two" : "house", x, z, rot: (r() < 0.5 ? 1 : -1) * (0.45 + r() * 0.35) + (r() < 0.5 ? Math.PI : 0), w, d: 8, name: "民居" }); }
+  for (let i = 0; i < 18; i++) { const x = 360 + r() * 270, z = -120 + r() * 230; if (free(x, z, 10, 10)) put({ type: "house", thatch: true, x, z, rot: (r() < 0.5 ? 1 : -1) * (0.4 + r() * 0.5), w: 8 + r() * 2, d: 6, name: "農舍" }); }
 })();
 
 for (const b of buildings) if (/酒|腳店|孫羊|客店/.test(b.name) && (b.type === "two" || b.type === "shop")) b.flag = true;
