@@ -41,7 +41,7 @@ export class Crowd {
     const i = this.n++;
     const seed = ((i * 2654435761) >>> 0) ^ 0x5bd1e995;
     const r = P.rng(seed); r(); r();
-    const p = { i, x: 0, y: P.LAND, z: 0, h: 0, lean: 0, bob: 0, armL: 0, armR: 0, sideL: 0, sideR: 0, carry: o.carry || null, hat: o.hat ?? (r() < 0.3 ? "cone" : r() < 0.6 ? "cap" : null), scale: 0.92 + r() * 0.14, ph: r() * 6.28, sway: 0, ride: false, hidden: false, kind: o.kind || "walk" };
+    const p = { i, x: 0, y: P.LAND, z: 0, h: 0, lean: 0, bob: 0, armL: 0, armR: 0, sideL: 0, sideR: 0, carry: o.carry || null, hat: o.hat ?? (r() < 0.3 ? "cone" : r() < 0.6 ? "cap" : null), scale: 1.05 + r() * 0.14, ph: r() * 6.28, sway: 0, ride: false, hidden: false, kind: o.kind || "walk" };
     if (p.kind === "boat" || p.kind === "tracker" || p.carry) p.hat = r() < 0.7 ? "cone" : null;
     this.col.setHex(o.color ?? ROBES[Math.floor(r() * ROBES.length)]);
     this.body.setColorAt(i, this.col); this.arm.setColorAt(i * 2, this.col); this.arm.setColorAt(i * 2 + 1, this.col);

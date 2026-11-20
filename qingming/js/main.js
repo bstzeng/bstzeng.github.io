@@ -152,6 +152,8 @@ function setMode(m, opt = {}) {
   mode = m;
   document.body.dataset.mode = m;
   $("#menu").hidden = true;
+  sun.castShadow = m === "walk";
+  sun.intensity = m === "walk" ? 2.2 : 1.5; hemi.intensity = m === "walk" ? 1.25 : 1.9;
   if (m === "paint") {
     camera = ortho;
     if (opt.x !== undefined) pan.x = pan.target = clampPan(opt.x);

@@ -121,10 +121,11 @@ export const caiLou = [];           // 彩樓歡門
     if (p.x > -10) continue;
     for (const side of [-1, 1]) {
       if (r() < 0.12) continue;
-      const off = side * 12;
+      const front = p.nz * side > 0;                 // 靠觀者這一側：矮一點、退後一點，才看得到街
+      const off = side * (front ? 11.5 : 12);
       const x = p.x + p.nx * off, z = p.z + p.nz * off;
-      const t = r() < 0.4 ? "two" : "shop";
-      put({ type: t, x, z, rot: Math.atan2(-p.nx * side, -p.nz * side), w: 12 + Math.round(r() * 3), d: 9, name: p.x < gate.x ? ["醫鋪", "茶坊", "酒肆", "香藥鋪", "絹鋪"][k % 5] : names[k % names.length] });
+      const t = front ? (r() < 0.6 ? "shop" : "shed") : r() < 0.45 ? "two" : "shop";
+      put({ type: t, x, z, rot: Math.atan2(-p.nx * side, -p.nz * side), w: front ? 10 + Math.round(r() * 2) : 12 + Math.round(r() * 3), d: front ? 6.5 : 9, name: p.x < gate.x ? ["醫鋪", "茶坊", "酒肆", "香藥鋪", "絹鋪"][k % 5] : names[k % names.length] });
       k++;
     }
   }
@@ -164,7 +165,7 @@ export const caiLou = [];           // 彩樓歡門
   let ni = 0;
   along("far", 10, 165, 15, 10, { type: () => (r() < 0.5 ? "two" : "shop"), name: () => shopNames[ni++ % shopNames.length], skip: 0.1 });
   along("bankst", 8, 144, 16, 8, { sides: [1, -1], type: () => (r() < 0.5 ? "shop" : "shed"), name: (t) => (t === "shed" ? "茶棚" : shopNames[ni++ % shopNames.length]), skip: 0.25 });
-  along("street", 30, 600, 19, 28, { type: () => (r() < 0.75 ? "house" : "two"), name: () => "民居", skip: 0.45, jit: 4, w: () => 10 + r() * 4 });
+  along("street", 30, 600, 19, 28, { sides: [-1, 1], type: () => (r() < 0.85 ? "house" : "shed"), name: () => "民居", skip: 0.55, jit: 4, w: () => 10 + r() * 4 });
   along("near", 20, 400, 22, 26, { sides: [sideSign > 0 ? 1 : -1], type: () => (r() < 0.7 ? "house" : "shed"), name: () => "民居", skip: 0.3, jit: 6 });
   along("towpath", 20, 390, 30, 16, { sides: [sideSign > 0 ? 1 : -1, sideSign > 0 ? -1 : 1], type: () => (r() < 0.6 ? "ware" : "house"), name: (t) => (t === "ware" ? "倉房" : "民居"), skip: 0.45, jit: 4 });
   along("country", 10, 360, 34, 18, { type: () => (r() < 0.75 ? "house" : "shed"), name: () => "農舍", thatch: true, skip: 0.45, jit: 10, w: () => 8 + r() * 3, d: () => 6 + r() * 2 });
@@ -173,6 +174,8 @@ export const caiLou = [];           // 彩樓歡門
   for (let i = 0; i < 18; i++) { const x = 360 + r() * 270, z = -120 + r() * 230; if (free(x, z, 10, 10)) put({ type: "house", thatch: true, x, z, rot: (r() - 0.5) * 0.8, w: 8 + r() * 2, d: 6, name: "農舍" }); }
 })();
 
+for (const b of buildings) if (/酒|腳店|孫羊|客店/.test(b.name) && (b.type === "two" || b.type === "shop")) b.flag = true;
+
 /* ---------------- 攤位（有大傘的） ---------------- */
 export const stalls = (() => {
   const out = [], r = rng(31);
@@ -180,9 +183,9 @@ export const stalls = (() => {
   for (const a of [-17, -11, 11, 17, 22]) for (const s of [-1, 1]) if (r() < 0.8) { const p = bridge.toWorld(a, s * 2.9); out.push({ x: p.x, z: p.z, rot: Math.atan2(bridge.ax, bridge.az) + (s > 0 ? 0 : Math.PI), kind: "umbrella", onBridge: a }); }
   // 橋頭、街邊
   const st = road("street").line;
-  for (let s = 20; s < st.len; s += 23) { const p = st.at(s); if (Math.abs(p.x - gate.x) < 30) continue; const side = r() < 0.5 ? -1 : 1; out.push({ x: p.x + p.nx * side * 5.3, z: p.z + p.nz * side * 5.3, rot: Math.atan2(p.nx * side, p.nz * side), kind: r() < 0.6 ? "umbrella" : "stall" }); }
+  for (let s = 14; s < st.len; s += 9) { const p = st.at(s); if (Math.abs(p.x - gate.x) < 30) continue; const side = r() < 0.5 ? -1 : 1; out.push({ x: p.x + p.nx * side * 5.3, z: p.z + p.nz * side * 5.3, rot: Math.atan2(p.nx * side, p.nz * side), kind: r() < 0.6 ? "umbrella" : "stall" }); }
   const nr = road("near").line;
-  for (let s = 40; s < nr.len; s += 37) { const p = nr.at(s); out.push({ x: p.x - p.nx * 4.5 * sideSign, z: p.z - p.nz * 4.5 * sideSign, rot: 0, kind: "umbrella" }); }
+  for (let s = 30; s < nr.len; s += 16) { const p = nr.at(s); out.push({ x: p.x - p.nx * 4.5 * sideSign, z: p.z - p.nz * 4.5 * sideSign, rot: 0, kind: "umbrella" }); }
   return out;
 })();
 
@@ -198,19 +201,22 @@ export const trees = (() => {
     return true;
   };
   const add = (type, x, z, sc = 1) => { if (ok(x, z)) out.push({ type, x, z, sc: sc * (0.85 + r() * 0.35), rot: r() * 6.3, seed: Math.floor(r() * 1e6) }); };
-  for (let i = 0; i < 70; i++) add(r() < 0.45 ? "willow" : r() < 0.7 ? "broad" : "blossom", 330 + r() * 300, -150 + r() * 230, 1.1);   // 郊野
-  for (let s = 10; s < river.len - 10; s += 17) for (const side of [-1, 1]) { if (r() < 0.4) continue; const p = river.at(s); const o = RIVER_HW + 4 + r() * 5; add("willow", p.x + side * p.nx * o, p.z + side * p.nz * o); }
-  for (let i = 0; i < 30; i++) add(r() < 0.5 ? "broad" : "willow", -60 + r() * 360, -150 + r() * 80);       // 北岸
-  for (let i = 0; i < 26; i++) add(r() < 0.6 ? "broad" : "blossom", -620 + r() * 300, -150 + r() * 260);    // 城內、城外
-  for (let i = 0; i < 20; i++) add("broad", -340 + r() * 330, 45 + r() * 50, 0.9);                              // 街後院子
+  for (let i = 0; i < 190; i++) add(r() < 0.4 ? "willow" : r() < 0.75 ? "broad" : "blossom", 330 + r() * 300, -150 + r() * 330, 1.1);
+  // 郊野小路兩旁的老樹
+  { const L = road("country").line; for (let s = 4; s < L.len; s += 9) for (const sd of [-1, 1]) { if (r() < 0.35) continue; const p = L.at(s), o = 4 + r() * 4; add(r() < 0.5 ? "willow" : "broad", p.x + p.nx * sd * o, p.z + p.nz * sd * o, 1.15); } }   // 郊野
+  for (let s = 10; s < river.len - 10; s += 9) for (const side of [-1, 1]) { if (r() < 0.25) continue; const p = river.at(s); const o = RIVER_HW + 4 + r() * 5; add("willow", p.x + side * p.nx * o, p.z + side * p.nz * o); }
+  for (let i = 0; i < 90; i++) add(r() < 0.5 ? "broad" : "willow", -60 + r() * 420, -170 + r() * 120);       // 北岸
+  for (let i = 0; i < 70; i++) add(r() < 0.6 ? "broad" : "blossom", -620 + r() * 300, -150 + r() * 260);    // 城內、城外
+  for (let i = 0; i < 70; i++) add(r() < 0.7 ? "broad" : "willow", -340 + r() * 330, 40 + r() * 70, 0.9);
+  for (let i = 0; i < 40; i++) add(r() < 0.6 ? "willow" : "broad", -330 + r() * 300, -180 + r() * 120);                              // 街後院子
   return out;
 })();
 
 /* ---------------- 船 ---------------- */
 export function moorings() {
   const out = [], r = rng(51);
-  for (let s = 30; s < bs - 60; s += 24) for (const far of [false, true]) {
-    if (r() < 0.35) continue;
+  for (let s = 30; s < bs - 60; s += 17) for (const far of [false, true]) {
+    if (r() < 0.12) continue;
     const p = river.at(s + r() * 8);
     const side = (far ? 1 : -1) * sideSign;
     const o = RIVER_HW - 4.5;
