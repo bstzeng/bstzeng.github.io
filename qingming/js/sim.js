@@ -30,7 +30,7 @@ function grandRoute() {
 export class Life {
   constructor(scene) {
     this.scene = scene;
-    this.crowd = new Crowd(scene, 640);
+    this.crowd = new Crowd(scene, 1500);
     this.agents = [];        // {update(dt,t)}
     this.walkers = [];
     this.boats = [];          // 給水面畫船跡
@@ -61,18 +61,18 @@ export class Life {
   buildWalkers() {
     const r = this.r;
     const many = (id, n, width, opt = {}) => { const R = P.road(id); const T = new Track(R.line); for (let i = 0; i < n; i++) this.addWalker(T, ((i + r() * 0.8) / n) * R.line.len, { width, ...opt }); };
-    many("country", 10, 2.6);
-    many("near", 34, 4.2);
-    many("towpath", 6, 1.6);
-    many("street", 120, 5.6);
-    many("far", 14, 2.6);
-    many("cross", 30, 4.6);
-    many("bankst", 18, 2.6);
+    many("country", 22, 2.6);
+    many("near", 90, 4.6);
+    many("towpath", 12, 1.6);
+    many("street", 280, 6.2);
+    many("far", 45, 3.0);
+    many("cross", 70, 5.0);
+    many("bankst", 45, 3.0);
     // 過橋的人潮（避開兩側攤位）
     const B = new Track(P.road("bridge").line);
-    for (let i = 0; i < 42; i++) this.addWalker(B, r() * B.line.len, { width: 3.6 });
+    for (let i = 0; i < 90; i++) this.addWalker(B, r() * B.line.len, { width: 3.6 });
     // 小孩
-    for (let i = 0; i < 10; i++) this.addWalker(new Track(P.road(["street", "cross", "near"][i % 3]).line), r() * 200, { child: true, carry: null, hat: null, speed: 1.3 + r() * 0.5 });
+    for (let i = 0; i < 30; i++) this.addWalker(new Track(P.road(["street", "cross", "near"][i % 3]).line), r() * 400, { child: true, carry: null, hat: null, speed: 1.3 + r() * 0.5 });
   }
   updateWalkers(dt, t) {
     const f = this.frame;
@@ -183,8 +183,8 @@ export class Life {
   buildBridgeCrowd() {
     const B = P.bridge, r = this.r;
     this.watchers = [];
-    for (let i = 0; i < 34; i++) {
-      const side = i < 22 ? -1 : 1;                 // 船從 b<0 那側來
+    for (let i = 0; i < 56; i++) {
+      const side = i < 36 ? -1 : 1;                 // 船從 b<0 那側來
       const a = (r() - 0.5) * 2 * 15;
       const b = side * (3.1 - r() * 0.5);
       const pos = B.toWorld(a, b);
@@ -232,6 +232,20 @@ export class Life {
       p.x = B.x + fx * (B.d / 2 + 1.4) + Math.cos(B.rot) * (r() - 0.5) * 4; p.z = B.z + fz * (B.d / 2 + 1.4) - Math.sin(B.rot) * (r() - 0.5) * 4;
       p.y = P.terrainH(p.x, p.z) + 0.45; p.h = B.rot;
       this.idle.push({ p, a: r() < 0.5 ? "talk" : "sell" });
+    }
+    // 三五成群站著說話的人（橋頭、街邊、城門口、河岸）
+    const spots = [];
+    for (const id of ["street", "near", "far", "bankst", "cross"]) { const L = P.road(id).line; for (let s = 6; s < L.len; s += id === "street" ? 14 : 22) spots.push({ L, s }); }
+    for (const { L, s } of spots) {
+      if (r() < 0.35) continue;
+      const q = L.at(s + r() * 5), sd = r() < 0.5 ? -1 : 1, off = sd * (2.4 + r() * 1.8);
+      const cx = q.x + q.nx * off, cz = q.z + q.nz * off, n = 2 + Math.floor(r() * 4), y = P.terrainH(cx, cz);
+      if (P.blocked(cx, cz, 0.6)) continue;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2 + r(), R = 0.8 + r() * 0.3;
+        const p = this.crowd.add({}); p.x = cx + Math.cos(a) * R; p.z = cz + Math.sin(a) * R; p.y = y; p.h = Math.atan2(cx - p.x, cz - p.z);
+        this.idle.push({ p, a: r() < 0.5 ? "talk" : r() < 0.3 ? "laugh" : "stand" });
+      }
     }
     // 城內十字路口：說書人與聽眾
     const cx = -490 + 9, cz = 22;

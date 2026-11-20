@@ -236,6 +236,24 @@ export function buildWorld(scene) {
     const y = S.onBridge !== undefined ? P.bridge.deck(S.onBridge) : P.terrainH(S.x, S.z);
     if (S.kind === "umbrella") buildUmbrella(bB, S, y); else buildStall(bB, { ...S, color: "red" }, y);
   }
+  // 店門前的蘆蓆遮陽棚（畫裡沿街幾乎每家都有）
+  for (const B of P.buildings) {
+    if (!["shop", "two", "shed"].includes(B.type) || B.thatch) continue;
+    const y = P.terrainH(B.x, B.z), PM = M([B.x, y, B.z], [0, B.rot, 0]);
+    const W = B.w * (0.55 + (Math.abs(Math.sin(B.x * 3.1)) * 0.3)), z0 = B.d / 2 + 0.6, z1 = z0 + 2.6 + Math.abs(Math.cos(B.z)) * 0.8;
+    bB.add("mat", surface(4, 2, (u, v) => [(u - 0.5) * W, 2.75 - v * 0.6 - Math.sin(u * Math.PI) * 0.06, z0 + (z1 - z0) * v], (u, v) => [u * W / 2, v]), null, PM);
+    for (const sx of [-0.5, 0, 0.5]) bB.add("bamboo", rod([sx * W, 0, z1], [sx * W, 2.2, z1], 0.04, 0.035, 4), null, PM);
+    // 棚下的桌凳、貨架
+    if (B.type !== "shed") for (const sx of [-0.25, 0.25]) { bB.add("woodGrain", box(1.4, 0.06, 0.7), M([sx * W, 0.78, (z0 + z1) / 2]), PM); for (const k of [-0.6, 0.6]) bB.add("woodDark", box(0.05, 0.75, 0.6), M([sx * W + k, 0.38, (z0 + z1) / 2]), PM); bB.add(["goods1", "goods2", "jar", "goods3"][Math.abs(Math.round(B.x + sx * 4)) % 4], lathe([[0, 0], [0.18, 0.02], [0.22, 0.16], [0.18, 0.24]], 8), M([sx * W, 0.81, (z0 + z1) / 2]), PM); }
+  }
+  // 郊野：籬笆、草垛
+  for (const B of P.buildings) {
+    if (!B.thatch) continue;
+    const y = P.terrainH(B.x, B.z), PM = M([B.x, y, B.z], [0, B.rot, 0]), R = Math.max(B.w, B.d) / 2 + 3.5;
+    for (let i = 0; i < 26; i++) { const a = (i / 26) * Math.PI * 2; if (i > 1 && i < 4) continue; bB.add("bamboo", rod([Math.cos(a) * R, 0, Math.sin(a) * R * 0.8], [Math.cos(a) * R, 1.1, Math.sin(a) * R * 0.8], 0.04, 0.03, 3), null, PM); }
+    for (const h of [0.35, 0.8]) bB.add("bamboo", tube(Array.from({ length: 27 }, (_, i) => { const a = (i / 26) * Math.PI * 2; return [Math.cos(a) * R, h, Math.sin(a) * R * 0.8]; }), 0.025, 52, 3), null, PM);
+    bB.add("goods1", lathe([[0, 0], [1.1, 0.05], [1.0, 1.0], [0.5, 1.7], [0, 1.9]], 10), M([R - 1.5, 0, -R * 0.5]), PM);
+  }
   const g2 = new THREE.Group(); bB.build(g2); scene.add(g2);
   const g3 = new THREE.Group(); const tm = bT.build(g3); for (const m of tm) if (m.material === mat("tile")) m.material = thatch(); scene.add(g3);
   // 招牌：店名直幅
