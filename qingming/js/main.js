@@ -148,6 +148,7 @@ async function build() {
   progress(0.25, "架虹橋、築城門、蓋店鋪…"); await tick();
   const w = buildWorld(scene);
   world.bridgeMeshes = w.bridgeMeshes;
+  world.gateWalls = w.gateWalls;
   progress(0.6, "放水…"); await tick();
   world.water = new Water(renderer, scene, { quality: LOW ? 0.5 : 0.8 });
   world.water.mesh.scale.set(1.0, 1, 1);
@@ -164,6 +165,7 @@ function setMode(m, opt = {}) {
   document.body.dataset.mode = m;
   $("#menu").hidden = true;
   sun.castShadow = m === "walk";
+  if (world.gateWalls) world.gateWalls.visible = m === "walk";     // 原畫的城門兩側沒有城牆
   sun.intensity = m === "walk" ? 2.2 : 1.5; hemi.intensity = m === "walk" ? 1.25 : 1.9;
   if (m === "paint") {
     camera = ortho;
