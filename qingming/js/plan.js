@@ -40,7 +40,8 @@ export const bridgeS = bridge.toWorld(bridge.half, 0);   // 南端（觀者這�
 export const bridgeN = bridge.toWorld(-bridge.half, 0);  // 北端
 
 /* ---------------- 城門 ---------------- */
-export const gate = { x: -362, z: 4, dx: 15, dz: 32, h: 8.5, tunnel: 6.4 };
+// 照原畫：高大的梯形城台、平頂抹角的門洞、南面一道長階梯，台上一座三開間的單簷城樓
+export const gate = { x: -362, z: 4, dx: 20, dz: 22, h: 13, tunnel: 6.4, stairW: 2.6 };
 
 /* ---------------- 地形 ---------------- */
 function hump(x, z, cx, cz, h, rx, rz = rx) { const dx = (x - cx) / rx, dz = (z - cz) / rz; return h * Math.exp(-(dx * dx + dz * dz)); }
@@ -204,14 +205,21 @@ export const trees = (() => {
     return true;
   };
   const add = (type, x, z, sc = 1) => { if (ok(x, z)) out.push({ type, x, z, sc: sc * (0.85 + r() * 0.35), rot: r() * 6.3, seed: Math.floor(r() * 1e6) }); };
-  for (let i = 0; i < 190; i++) add(r() < 0.4 ? "willow" : r() < 0.75 ? "broad" : "blossom", 330 + r() * 300, -150 + r() * 330, 1.1);
+  for (let i = 0; i < 190; i++) add(r() < 0.45 ? "oldwillow" : r() < 0.9 ? "bare" : "blossom", 330 + r() * 300, -150 + r() * 330, 1.1);
   // 郊野小路兩旁的老樹
-  { const L = road("country").line; for (let s = 4; s < L.len; s += 9) for (const sd of [-1, 1]) { if (r() < 0.35) continue; const p = L.at(s), o = 4 + r() * 4; add(r() < 0.5 ? "willow" : "broad", p.x + p.nx * sd * o, p.z + p.nz * sd * o, 1.15); } }   // 郊野
+  { const L = road("country").line; for (let s = 4; s < L.len; s += 9) for (const sd of [-1, 1]) { if (r() < 0.35) continue; const p = L.at(s), o = 4 + r() * 4; add(r() < 0.6 ? "oldwillow" : "bare", p.x + p.nx * sd * o, p.z + p.nz * sd * o, 1.15); } }   // 郊野
   for (let s = 10; s < river.len - 10; s += 9) for (const side of [-1, 1]) { if (r() < 0.25) continue; const p = river.at(s); const o = RIVER_HW + 4 + r() * 5; add("willow", p.x + side * p.nx * o, p.z + side * p.nz * o); }
   for (let i = 0; i < 90; i++) add(r() < 0.5 ? "broad" : "willow", -60 + r() * 420, -170 + r() * 120);       // 北岸
   for (let i = 0; i < 70; i++) add(r() < 0.6 ? "broad" : "blossom", -620 + r() * 300, -150 + r() * 260);    // 城內、城外
   for (let i = 0; i < 70; i++) add(r() < 0.7 ? "broad" : "willow", -340 + r() * 330, 40 + r() * 70, 0.9);
   for (let i = 0; i < 40; i++) add(r() < 0.6 ? "willow" : "broad", -330 + r() * 300, -180 + r() * 120);                              // 街後院子
+  // 城門四周的樹（原畫的城門被一圈老樹圍著）
+  for (let i = 0; i < 26; i++) {
+    const sx = r() < 0.5 ? -1 : 1, sz = r() < 0.5 ? -1 : 1;
+    const x = gate.x + sx * (gate.dx / 2 + 5 + r() * 22), z = gate.z + sz * (gate.dz / 2 + 4 + r() * 26);
+    if (roadLines.some((R) => R.line.near(x, z, 20).d < R.w / 2 + 2) || buildings.some((b) => Math.hypot(b.x - x, b.z - z) < Math.max(b.w, b.d) * 0.62 + 2) || Math.abs(x - gate.x) < 4) continue;
+    out.push({ type: r() < 0.5 ? "bare" : "broad", x, z, sc: 1.1 + r() * 0.3, rot: r() * 6.3, seed: Math.floor(r() * 1e6) });
+  }
   return out;
 })();
 
@@ -253,6 +261,7 @@ export const obstacles = (() => {
   o.push({ x: g.x, z: g.z - (tw + half) / 2, hx: g.dx / 2, hz: (half - tw) / 2, rot: 0 });
   o.push({ x: g.x, z: g.z + (tw + half) / 2, hx: g.dx / 2, hz: (half - tw) / 2, rot: 0 });
   for (const s of [-1, 1]) o.push({ x: g.x, z: g.z + s * (half + 30), hx: 1.6, hz: 30, rot: 0 });   // 城牆
+  o.push({ x: g.x, z: g.z + half + g.stairW / 2, hx: g.dx / 2 - 0.5, hz: g.stairW / 2, rot: 0 });      // 南面的長階梯
   return o;
 })();
 export function blocked(x, z, r = 0.35) {

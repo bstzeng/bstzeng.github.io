@@ -5,6 +5,7 @@ import * as TX from "../../xishan/js/tex.js";
 import { buildBuilding, buildStall } from "../../xishan/js/build.js";
 import { buildTrees, buildReeds } from "../../xishan/js/plants.js";
 import * as P from "./plan.js";
+import { buildSpringTrees } from "./trees.js";
 
 /* ---------------- 茅草（郊野茅屋） ---------------- */
 let thatchMat;
@@ -140,40 +141,74 @@ export function buildCreekBridge(b) {
 }
 
 /* ---------------- 城門 ---------------- */
-export function buildGate(b, group) {
-  const G = P.gate, y0 = P.LAND - 0.5;
+export function buildGate(b, group, wallB = b) {
+  const G = P.gate, y0 = P.LAND - 0.3, H = G.h;
+  // 城台：四面收分的梯形台，門洞是平頂抹角（宋式過梁門），沿 x 穿過
   const shape = new THREE.Shape();
-  const W = G.dz / 2, R = G.tunnel / 2, spring = 4.0;
-  shape.moveTo(-W, 0); shape.lineTo(W, 0); shape.lineTo(W - 0.8, G.h); shape.lineTo(-W + 0.8, G.h); shape.lineTo(-W, 0);
+  const W = G.dz / 2, bat = 1.6;
+  shape.moveTo(-W, 0); shape.lineTo(W, 0); shape.lineTo(W - bat, H); shape.lineTo(-W + bat, H); shape.lineTo(-W, 0);
+  const R = G.tunnel / 2, wall = 6.6, top = 8.6, topW = 1.9;
   const hole = new THREE.Path();
-  hole.moveTo(-R, 0); hole.lineTo(R, 0); hole.lineTo(R, spring); hole.absarc(0, spring, R, 0, Math.PI, false); hole.lineTo(-R, 0);
+  hole.moveTo(-R, 0); hole.lineTo(R, 0); hole.lineTo(R, wall); hole.lineTo(topW, top); hole.lineTo(-topW, top); hole.lineTo(-R, wall); hole.lineTo(-R, 0);
   shape.holes.push(hole);
-  const g = new THREE.ExtrudeGeometry(shape, { depth: G.dx, bevelEnabled: false, curveSegments: 18 });
-  // 擠出方向是 +z，轉成沿 x（路穿過城門的方向）
+  const g = new THREE.ExtrudeGeometry(shape, { depth: G.dx, bevelEnabled: false });
   g.translate(0, 0, -G.dx / 2);
+  // 東西兩面也收分：把擠出的兩端往內縮一點
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) { const yy = pos.getY(i), zz = pos.getZ(i); pos.setZ(i, zz * (1 - (yy / H) * (bat / (G.dx / 2)))); }
+  g.computeVertexNormals();
   g.rotateY(Math.PI / 2);
   const uvs = g.attributes.uv; for (let i = 0; i < uvs.count; i++) uvs.setXY(i, uvs.getX(i) / 3, uvs.getY(i) / 3);
   b.add("stone", g, M([G.x, y0, G.z]));
-  b.add("stoneLight", box(G.dx + 0.4, 0.3, G.dz - 1.2), M([G.x, y0 + G.h + 0.15, G.z]));
-  // 城樓（五開間，重簷歇山），屋脊沿 z
-  const top = y0 + G.h + 0.3, PM = M([G.x, top, G.z], [0, Math.PI / 2, 0]);
-  const bw = G.dz - 6, bd = G.dx - 3.5;
-  for (let i = 0; i <= 5; i++) for (const z of [-bd / 2, bd / 2]) {
-    const x = -bw / 2 + (bw * i) / 5;
-    b.add("red", cyl(0.3, 0.32, 5.2, 10), M([x, 2.6, z]), PM);
+  // 門洞上的木過梁、門框
+  for (const s of [-1, 1]) {
+    const x = G.x + s * (G.dx / 2 - 0.2);
+    b.add("woodDark", box(0.3, 0.35, topW * 2 + 0.6), M([x, y0 + top + 0.1, G.z]));
+    for (const zz of [-R, R]) b.add("woodDark", box(0.3, wall, 0.3), M([x, y0 + wall / 2, G.z + zz]));
+    for (const zz of [-1, 1]) b.add("woodDark", rod([x, y0 + wall, G.z + zz * R], [x, y0 + top, G.z + zz * topW], 0.14, 0.14, 5));
   }
-  b.add("plaster", box(bw, 4.2, bd - 1.4), M([0, 2.4, 0]), PM);
-  b.add("green", box(bw + 0.6, 0.5, bd + 0.5), M([0, 5.3, 0]), PM);
-  for (const s of [-1, 1]) for (let i = 0; i < 5; i++) b.add("lattice2", new THREE.PlaneGeometry(bw / 5 - 0.6, 2.4), M([-bw / 2 + (bw / 5) * (i + 0.5), 2.8, s * (bd / 2 - 0.68)], [0, s > 0 ? 0 : Math.PI, 0]), PM);
-  roof(b, { ex: bw / 2 + 2.6, ez: bd / 2 + 2.6, H: 2.6, type: "pent", ring: 0.5, lift: 1.2 }, PM.clone().multiply(M([0, 5.6, 0])));
-  b.add("plaster", box(bw - 2, 2.2, bd - 2), M([0, 7.2, 0]), PM);
-  roof(b, { ex: bw / 2 + 1.6, ez: bd / 2 + 1.8, H: 4.2, type: "xieshan", lift: 1.4, ridgeH: 0.7 }, PM.clone().multiply(M([0, 8.4, 0])));
-  // 兩側殘缺的夯土城牆
+  // 台頂：鋪磚、四周木欄杆
+  const tx = G.dx / 2 - bat, tz = G.dz / 2 - bat, yt = y0 + H;
+  b.add("stoneLight", box(tx * 2, 0.25, tz * 2), M([G.x, yt + 0.12, G.z]));
+  const rail = (ax, az, bx, bz) => {
+    const L = Math.hypot(bx - ax, bz - az), n = Math.ceil(L / 1.6);
+    for (let i = 0; i <= n; i++) b.add("woodDark", box(0.12, 1.0, 0.12), M([ax + ((bx - ax) * i) / n, yt + 0.75, az + ((bz - az) * i) / n]));
+    for (const h of [0.6, 1.2]) b.add("woodDark", rod([ax, yt + h, az], [bx, yt + h, bz], 0.05, 0.05, 4));
+  };
+  const X0 = G.x - tx + 0.2, X1 = G.x + tx - 0.2, Z0 = G.z - tz + 0.2, Z1 = G.z + tz - 0.2;
+  rail(X0, Z0, X1, Z0); rail(X0, Z1, X1 - 3.2, Z1); rail(X0, Z0, X0, Z1); rail(X1, Z0, X1, Z1);
+  // 南面一道長階梯（從西邊地面斜上到台頂東側），外側有欄杆
+  const sw = G.stairW, zS = G.z + G.dz / 2 + sw / 2 - 0.2, n = Math.round(H / 0.25);
+  const xa = G.x - G.dx / 2 + 1.0, xb = G.x + G.dx / 2 - 2.2;
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n, x = xa + (xb - xa) * t, hh = H * (i + 1) / n;
+    b.add("steps", box((xb - xa) / n + 0.02, hh, sw), M([x, y0 + hh / 2, zS - bat * (hh / H)]));
+  }
+  // 階梯外側欄杆
+  const zr = zS + sw / 2 - 0.1;
+  for (const h of [0.6, 1.1]) b.add("woodDark", rod([xa, y0 + h, zr], [xb, y0 + H + h, zr - bat], 0.05, 0.05, 4));
+  for (let i = 0; i <= 12; i++) { const t = i / 12; b.add("woodDark", box(0.1, 1.1, 0.1), M([xa + (xb - xa) * t, y0 + H * t + 0.55, zr - bat * t])); }
+  // 城樓：平座（有欄杆的外廊）上一座三開間、單簷歇山
+  const bw = 14, bd = 9, yb = yt + 0.25;
+  const PM = M([G.x - 0.3, yb, G.z - 1.6]);          // 樓身面寬沿 x（面對畫面）
+  b.add("woodDark", box(bw + 2.6, 0.45, bd + 2.6), M([0, 0.9, 0]), PM);
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.add("woodDark", box(0.3, 0.9, 0.3), M([sx * (bw / 2 + 1.1), 0.45, sz * (bd / 2 + 1.1)]), PM);
+  const R2 = (ax, az, bx, bz) => { for (const h of [1.6, 2.1]) b.add("red", rod([ax, h, az], [bx, h, bz], 0.05, 0.05, 4), null, PM); const L = Math.hypot(bx - ax, bz - az), m = Math.ceil(L / 1.2); for (let i = 0; i <= m; i++) b.add("woodDark", box(0.08, 1.0, 0.08), M([ax + ((bx - ax) * i) / m, 1.6, az + ((bz - az) * i) / m]), PM); };
+  const ex = bw / 2 + 1.2, ez = bd / 2 + 1.2;
+  R2(-ex, ez, ex, ez); R2(-ex, -ez, ex, -ez); R2(-ex, -ez, -ex, ez); R2(ex, -ez, ex, ez);
+  for (let i = 0; i <= 3; i++) for (const z of [-bd / 2, bd / 2]) b.add("wood", cyl(0.24, 0.26, 4.2, 8), M([-bw / 2 + (bw * i) / 3, 1.1 + 2.1, z]), PM);
+  for (const z of [-bd / 2, bd / 2]) for (let i = 0; i < 3; i++) {
+    b.add("lattice2", new THREE.PlaneGeometry(bw / 3 - 0.5, 2.2), M([-bw / 2 + (bw / 3) * (i + 0.5), 3.0, z * 0.96], [0, z > 0 ? 0 : Math.PI, 0]), PM);
+    b.add("woodDark", box(bw / 3 - 0.4, 0.9, 0.1), M([-bw / 2 + (bw / 3) * (i + 0.5), 1.55, z * 0.97]), PM);
+  }
+  b.add("plaster", box(0.2, 3.4, bd), M([-bw / 2, 2.8, 0]), PM); b.add("plaster", box(0.2, 3.4, bd), M([bw / 2, 2.8, 0]), PM);
+  b.add("woodDark", box(bw + 0.5, 0.5, bd + 0.5), M([0, 5.45, 0]), PM);
+  roof(b, { ex: bw / 2 + 2.0, ez: bd / 2 + 2.0, H: 3.4, type: "xieshan", lift: 0.55, ridgeH: 0.45 }, PM.clone().multiply(M([0, 5.7, 0])));
+  // 兩側的城牆（原畫沒有畫城牆；走進畫中時保留，畫前模式會隱藏）
   for (const s of [-1, 1]) {
     const len = 30;
-    const wall = new THREE.BoxGeometry(3.2, G.h - 1.5, len);
-    b.add("stone", wall, M([G.x, y0 + (G.h - 1.5) / 2, G.z + s * (G.dz / 2 + len / 2)]));
-    for (let k = 0; k < 9; k++) b.add("stone", box(3.4, 1.0, 1.6), M([G.x, y0 + G.h - 1.0, G.z + s * (G.dz / 2 + 2 + k * 3.2)]));
+    wallB.add("stone", new THREE.BoxGeometry(3.2, H - 3, len), M([G.x, y0 + (H - 3) / 2, G.z + s * (G.dz / 2 + len / 2)]));
+    for (let k = 0; k < 9; k++) wallB.add("stone", box(3.4, 1.0, 1.6), M([G.x, y0 + H - 3.5, G.z + s * (G.dz / 2 + 2 + k * 3.2)]));
   }
 }
 
@@ -227,7 +262,9 @@ export function buildWorld(scene) {
   buildTerrain(scene);
   const bG = new Batch(); buildGround(bG); buildBridge(bG); buildCreekBridge(bG);
   const signs = new THREE.Group();
-  buildGate(bG, signs);
+  const bWall = new Batch();
+  buildGate(bG, signs, bWall);
+  const gateWalls = new THREE.Group(); bWall.build(gateWalls); scene.add(gateWalls);
   const g1 = new THREE.Group(); const bridgeMeshes = bG.build(g1); scene.add(g1);
   const bB = new Batch(), bT = new Batch();
   for (const B of P.buildings) buildBuilding(B.thatch ? bT : bB, signs, { ...B, sign: undefined }, P.terrainH(B.x, B.z));
@@ -267,7 +304,9 @@ export function buildWorld(scene) {
     signs.add(m);
   }
   scene.add(signs);
-  buildTrees(scene, P.trees, (x, z) => P.terrainH(x, z));
+  const spring = P.trees.filter((t) => t.type === "bare" || t.type === "oldwillow");
+  buildTrees(scene, P.trees.filter((t) => !spring.includes(t)), (x, z) => P.terrainH(x, z));
+  buildSpringTrees(scene, spring, (x, z) => P.terrainH(x, z));
   const reeds = [], r = P.rng(9);
   for (let s = 10; s < P.river.len; s += 6) for (const side of [-1, 1]) {
     if (Math.abs(s - P.bridge.s) < 80 || r() < 0.5) continue;
@@ -275,5 +314,5 @@ export function buildWorld(scene) {
     reeds.push({ x: p.x + side * p.nx * o, z: p.z + side * p.nz * o, y: -0.2, rot: r() * 3, s: 0.8 + r() * 0.7 });
   }
   buildReeds(scene, reeds);
-  return { bridgeMeshes };
+  return { bridgeMeshes, gateWalls };
 }
