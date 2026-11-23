@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#eef2fb">
+  <title>機房日常 // NEON LAB</title>
+  <meta name="description" content="資料中心維修員模擬：45 度斜角的真實尺寸機房，點地板走路，換硬碟、換電源、修空調、上架新機，在時限內把工單修好，別拔錯東西！">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <header class="top">
+    <a class="back" href="../">← 首頁</a>
+    <div class="pill brand">🖥️ 機房日常</div>
+    <div class="pill"><b id="day">第 1 天</b><span id="clock">08:00</span></div>
+    <div class="pill" id="sla">SLA 100%</div>
+    <div class="pill" id="inc">事故 0</div>
+    <div class="pill soft" id="lvl"></div>
+    <div class="pill soft" id="where"></div>
+    <div class="grow"></div>
+    <button id="bTickets" class="pill btn">📟 工單 0</button>
+    <button id="bHeat" class="pill btn">🌡️ 熱圖</button>
+    <button id="bFollow" class="pill btn on">🎯 跟隨：開</button>
+    <button id="bPause" class="pill btn">⏸ 暫停</button>
+    <button id="bEnd" class="pill btn">🏠 下班</button>
+  </header>
+
+  <div id="tlist" hidden></div>
+  <aside id="ticket"></aside>
+  <button id="bNav" class="navbtn">🧭 導航到下一步</button>
+  <button id="bBack" class="backbtn" hidden>🎯 回到我身上</button>
+
+  <div class="zoom">
+    <button id="bZin" aria-label="拉近">＋</button>
+    <span id="zoomv">機房</span>
+    <button id="bZout" aria-label="拉遠">－</button>
+    <button id="bRun" aria-label="小跑步">🏃</button>
+  </div>
+  <canvas id="minimap" width="300" height="200" title="點小地圖可以把鏡頭飛過去"></canvas>
+
+  <footer class="bar">
+    <div id="tools"></div>
+    <div id="inv"></div>
+  </footer>
+
+  <div id="dialog" hidden></div>
+  <div id="toasts"></div>
+  <section id="panel" hidden></section>
+
+  <div id="loading"><div class="logo">🖥️</div><p id="loadmsg">開機中…</p></div>
+  <div id="menu" hidden>
+    <div class="card">
+      <div class="logo">🖥️🔧</div>
+      <h1>機房日常</h1>
+      <p class="sub">你是資料中心的現場維修員。四間機房、兩千四百個機櫃、四萬台伺服器，今天又有機器在哭了 (；ω；)</p>
+      <ul class="how">
+        <li>👆 <b>點地板</b>走過去，<b>點機櫃、架子</b>會走到旁邊打開特寫</li>
+        <li>📟 右邊的工單會一步步告訴你要做什麼，<b>🧭 導航</b>會帶路</li>
+        <li>🔍 拖曳移動畫面、滾輪／兩指縮放，<b>🎯 跟隨</b>可以開關</li>
+        <li>⚠️ 動手前先<b>掃描標籤</b>、戴<b>防靜電手環</b>，<b>拔錯會出事故</b>！</li>
+      </ul>
+      <div class="row"><button id="bStart" class="main">開始第 1 天 ▶</button><button id="bFresh">從頭開始</button></div>
+      <p class="keys">電腦：F 跟隨、H 熱圖、R 小跑步、＋／－ 縮放、WASD 平移、空白鍵暫停</p>
+    </div>
+  </div>
+  <div id="end" hidden><div class="card"></div></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
