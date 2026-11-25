@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0d1a12">
+  <title>翠嶺高爾夫 // NEON LAB</title>
+  <meta name="description" content="擬真 3D 高爾夫：18 洞、標準桿 72、7,085 碼，每洞照真實長度，有地形、果嶺坡度、風、雨、霧，選方向與力道、軌跡預測、揮桿量表。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">{ "imports": { "three": "../lib/three.module.min.js", "three/addons/": "../lib/jsm/" } }</script>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <!-- 左上：洞資訊（轉播風格） -->
+  <section class="hud tl">
+    <div class="holebox"><b id="hHole">1</b><div><span id="hName"></span><small><span id="hPar"></span>・<span id="hLen"></span></small></div></div>
+    <div class="strokebox"><span id="hStroke">第 1 桿</span><span class="tot">總成績 <b id="hTotal">E</b></span></div>
+    <a class="home" href="../">← 首頁</a>
+  </section>
+
+  <!-- 右上：風、天氣、小地圖 -->
+  <section class="hud tr">
+    <div class="windbox"><div class="compass"><i id="wArrow">➤</i></div><div><b id="wSpd">0</b><small>km/h</small><span id="wx"></span></div></div>
+    <canvas id="mm" width="180" height="320"></canvas>
+    <div class="row"><button id="bCard">📋 記分卡</button></div>
+  </section>
+
+  <!-- 左下：距離、球位、球桿 -->
+  <section class="hud bl" id="aimui">
+    <div class="distbox"><small>到旗桿</small><b id="dPin">—</b><span id="dElev"></span><span id="dPlays"></span></div>
+    <div id="lie" class="lie"></div>
+    <div class="clubbox">
+      <button id="cPrev" aria-label="長一點的桿">▲</button>
+      <div class="cinfo"><b id="cId">1W</b><span id="cName"></span><small id="cDist"></small><em id="cRec">球童建議</em></div>
+      <button id="cNext" aria-label="短一點的桿">▼</button>
+    </div>
+    <div class="powerbox"><label>預定力道 <b id="pVal">100%</b></label><input id="power" type="range" min="5" max="100" value="100"></div>
+    <div id="shape" class="shape">
+      <div class="seg"><button data-curve="-0.5">↰ 左曲</button><button data-curve="0" class="on">直球</button><button data-curve="0.5">右曲 ↱</button></div>
+      <div class="seg"><button data-loft="-3">低飛</button><button data-loft="0" class="on">標準</button><button data-loft="3">高飛</button></div>
+    </div>
+    <div class="row cams"><button id="bCam">🎥 瞄準</button><button id="bGrid" hidden>▦ 格線</button><button id="bReset">↺ 重設</button></div>
+    <p id="pvInfo" class="pv"></p>
+  </section>
+
+  <!-- 下方中間：瞄準＋揮桿量表 -->
+  <section class="hud bc">
+    <div class="aimrow"><button id="aL" aria-label="往左瞄">◀</button><span>拖曳畫面也能瞄準</span><button id="aR" aria-label="往右瞄">▶</button></div>
+    <div id="meter"><i id="mzero"></i><i id="m100"></i><i id="mplan"></i><i id="mfill"></i><i id="mcur"></i></div>
+    <button id="swing">揮桿</button>
+    <p class="mhelp">按一下開始 → 再按一下決定力道（停在黃線）→ 回來時按一下決定準度（停在中間綠區）</p>
+  </section>
+
+  <button id="skip" hidden>跳過空拍 ▶</button>
+  <div id="banner"></div>
+  <div id="toasts"></div>
+
+  <div id="card" hidden><div class="inner"></div></div>
+
+  <div id="loading" hidden><div class="lbox"><h1 id="ltitle">翠嶺高爾夫</h1><p id="lmsg">準備中…</p><div class="bar"><i id="lbar"></i></div></div></div>
+
+  <div id="menu" hidden>
+    <div class="mbox">
+      <h1>翠嶺高爾夫</h1>
+      <p id="courseInfo" class="sub"></p>
+      <div class="opts">
+        <label>開球洞<select id="o_hole"></select></label>
+        <label>難度<select id="o_diff"><option value="easy">簡單：預測線含風與滾動，一按就揮</option><option value="std">標準：揮桿量表，預測線不含風</option><option value="pro">職業：只看前半段軌跡</option></select></label>
+        <label>天氣<select id="o_weather"><option value="random">隨機</option><option value="clear">晴天</option><option value="cloudy">多雲</option><option value="rain">陣雨</option><option value="fog">起霧</option></select></label>
+        <label>風<select id="o_wind"><option value="random">隨機</option><option value="0">無風</option><option value="1">微風</option><option value="2">中等</option><option value="3">強風</option></select></label>
+        <label>時段<select id="o_time"><option value="random">隨機</option><option value="morning">早晨</option><option value="noon">午後</option><option value="evening">黃昏</option></select></label>
+        <label>單位<select id="o_units"><option value="yd">碼</option><option value="m">公尺</option></select></label>
+        <label>畫質<select id="o_quality"><option value="high">高（陰影、草叢、反鋸齒）</option><option value="low">省電（平板、手機）</option></select></label>
+      </div>
+      <p id="qnote" class="note" hidden>畫質改了，重新整理頁面後生效。</p>
+      <button id="bStart" class="main">開球 ▶</button>
+      <p class="keys">電腦：← → 或拖曳瞄準、↑ ↓ 換桿、[ ] 力道、Q/E 曲球、C 換鏡頭、G 果嶺格線、空白鍵揮桿、Tab 記分卡</p>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
