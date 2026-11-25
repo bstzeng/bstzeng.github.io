@@ -142,7 +142,7 @@ export class Hole {
       if (h.startsWith("gb")) { const ang = { gbL: -Math.PI / 2, gbR: Math.PI / 2, gbF: Math.PI, gbB: 0 }[h] + (r() - 0.5) * 0.5; const p = gAt(ang, 4); this.bunkers.push(this.blob({ x: p.x, z: p.z, rx: 8 + r() * 4, rz: 4 + r() * 2.5, rot: Math.atan2(p.z - g.z, p.x - g.x) + Math.PI / 2, depth: 1.3, greenside: true })); }
       if (h === "wF") { const p = atS(this.len - 40, 0); this.waters.push(this.blob({ x: p.x, z: p.z, rx: 32, rz: 15, rot: Math.atan2(p.tz, p.tx) + Math.PI / 2 + (r() - 0.5) * 0.4, a1: 0.1, a2: 0.06 })); }
       if (h === "wC") { const p = atS(this.len * 0.45, 0); this.waters.push(this.blob({ x: p.x, z: p.z, rx: 28, rz: this.len * 0.3, rot: Math.atan2(p.tz, p.tx), a1: 0.08, a2: 0.05 })); }
-      if (h === "wL" || h === "wR") { const sgn = h === "wR" ? 1 : -1; const s0 = this.fwStart + 20 + r() * 40; const p = atS(s0 + 70, sgn * (this.fw / 2 + 30)); this.waters.push(this.blob({ x: p.x, z: p.z, rx: 80, rz: 22, rot: Math.atan2(p.tz, p.tx), a1: 0.08, a2: 0.06 }));   // rx 沿球道方向、rz 橫向 }
+      if (h === "wL" || h === "wR") { const sgn = h === "wR" ? 1 : -1; const s0 = this.fwStart + 20 + r() * 40; const p = atS(s0 + 70, sgn * (this.fw / 2 + 30)); this.waters.push(this.blob({ x: p.x, z: p.z, rx: 80, rz: 22, rot: Math.atan2(p.tz, p.tx), a1: 0.08, a2: 0.06 })); }
       if (h === "creek") { const s = this.fwStart + 30 + r() * 60; const p = L.at(s); const nx = -p.tz, nz = p.tx; const pts = []; for (let k = -6; k <= 6; k++) { const d = k * 15; pts.push([p.x + nx * d + p.tx * Math.sin(k * 0.9 + this.seed) * 10, p.z + nz * d + p.tz * Math.sin(k * 0.9 + this.seed) * 10]); } this.creeks.push({ line: new Line(pts), w: 3.2 }); }
     }
   }
