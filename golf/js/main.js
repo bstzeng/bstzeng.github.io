@@ -179,7 +179,8 @@ function finishMeter() {
   let acc = meter.acc;
   if (Math.abs(acc) < ACC_ZONE) acc = 0;
   const p = meter.power, over = Math.max(0, p - 1);
-  fire(Math.min(1.06, p), acc + Math.sign(acc || 1) * over * 0.4 * (acc ? 1 : 0) + (over > 0.05 && !acc ? over * 0.6 : 0));
+  // 過度揮桿（超過 100%）：多一點距離，但準度會往同一邊偏得更多
+  fire(Math.min(1.06, p), acc + (over > 0 ? Math.sign(acc || 1) * over * 0.5 : 0));
 }
 
 /* ---------------- 擊球 ---------------- */
