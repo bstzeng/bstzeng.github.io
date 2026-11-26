@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#3a7bd5">
+  <title>公仔網球 // NEON LAB</title>
+  <meta name="description" content="3D 公仔風網球：小人跟著滑鼠游標跑，球進到手臂範圍就自動回擊。難度低、中、高。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../sportkit/ui.css">
+  <style>
+    :root { --bg: #8fd3ff; }
+    body.playing #c { cursor: crosshair; }
+    .score .side b { font-size: 26px; }
+    .score .mid em { font-size: 20px; }
+  </style>
+  <script type="importmap">{ "imports": { "three": "../lib/three.module.min.js" } }</script>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div class="score" id="score">
+    <div class="side me" id="sMe"><small>你</small><b id="pMe">0</b></div>
+    <div class="mid"><span id="sDiff">局數</span><em id="games">0 : 0</em></div>
+    <div class="side ai" id="sAi"><small>對手</small><b id="pAi">0</b></div>
+  </div>
+  <div class="corner"><a href="../">← 首頁</a></div>
+  <div class="corner r"><button id="bSound">🔊</button><button id="bMenu">☰ 難度</button></div>
+  <p class="hint" id="hint"></p>
+  <div class="toast" id="toast"></div>
+  <div class="spin" id="spin"><b>好球</b><span><i></i></span></div>
+
+  <div class="overlay" id="menu">
+    <div class="panel">
+      <h1><span>🎾</span> 公仔網球</h1>
+      <p class="sub">先拿 4 局獲勝（每局 15、30、40，40 平要連贏 2 分）</p>
+      <div class="how">
+        🖱️ 小人會<b>跟著滑鼠游標跑</b>（速度固定，要提早移動）<br>
+        🎾 球進到小人腳下那圈<b>手臂範圍</b>內，就會<b>自動回擊</b><br>
+        ↔️ 球在你<b>右邊</b>打到 → 往左飛；在<b>左邊</b> → 往右飛；球在<b>正中間</b>最好，又快又深<br>
+        ⏱️ 球還沒跑到你身邊就打（<b>早擊</b>）會打斜線<br>
+        🎯 發球：游標左右移動選落點，球拋到<b>最高點</b>時點擊滑鼠最準最快
+      </div>
+      <div class="diffs">
+        <button class="easy" data-d="easy">低<small>慢慢打</small></button>
+        <button class="normal" data-d="normal">中<small>有來有往</small></button>
+        <button class="hard" data-d="hard">高<small>職業選手</small></button>
+      </div>
+      <a class="home" href="../">← 回首頁</a>
+    </div>
+  </div>
+
+  <div class="overlay" id="over" hidden>
+    <div class="panel">
+      <h1 id="oTitle">你贏了！</h1>
+      <div class="big" id="oScore">4 : 2</div>
+      <p class="sub" id="oSub"></p>
+      <div class="row">
+        <button class="btn" id="bAgain">再來一場</button>
+        <button class="btn" id="bDiff">換難度</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

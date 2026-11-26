@@ -1,0 +1,53 @@
+/* 球類小遊戲共用介面：公仔玩具風 */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: var(--bg, #1c2333); font-family: "Noto Sans TC", system-ui, sans-serif; color: #2a1a2e; -webkit-user-select: none; user-select: none; touch-action: none; }
+#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+body.playing #c { cursor: none; }
+
+.score { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); display: flex; align-items: stretch; gap: 0; background: #fffdf5; border: 3px solid #2a1a2e; border-radius: 18px; box-shadow: 0 5px 0 #2a1a2e; overflow: hidden; font-weight: 900; z-index: 5; }
+.score .side { padding: 6px 14px; text-align: center; min-width: 86px; }
+.score .side small { display: block; font-size: 12px; font-weight: 700; opacity: .7; }
+.score .side b { font-size: 30px; line-height: 1; }
+.score .me { background: #ffd84d; }
+.score .ai { background: #8fd3ff; }
+.score .mid { padding: 6px 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 12px; font-weight: 700; min-width: 70px; }
+.score .mid em { font-style: normal; font-size: 18px; font-weight: 900; }
+.score .serve::after { content: "●"; color: #ff4d6d; margin-left: 4px; font-size: 14px; vertical-align: middle; }
+
+.corner { position: fixed; top: 12px; left: 12px; display: flex; gap: 8px; z-index: 6; }
+.corner.r { left: auto; right: 12px; }
+.btn, .corner a, .corner button { font: inherit; font-weight: 900; font-size: 14px; color: #2a1a2e; background: #fffdf5; border: 3px solid #2a1a2e; border-radius: 14px; padding: 6px 12px; box-shadow: 0 4px 0 #2a1a2e; cursor: pointer; text-decoration: none; display: inline-block; }
+.btn:active, .corner a:active, .corner button:active { transform: translateY(3px); box-shadow: 0 1px 0 #2a1a2e; }
+
+.hint { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: rgba(255, 253, 245, .92); border: 3px solid #2a1a2e; border-radius: 14px; padding: 6px 14px; font-weight: 700; font-size: 15px; z-index: 5; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
+.hint:empty { display: none; }
+
+.toast { position: fixed; top: 34%; left: 50%; transform: translate(-50%, -50%) scale(.6); font-size: clamp(28px, 6vw, 54px); font-weight: 900; color: #fff; -webkit-text-stroke: 3px #2a1a2e; paint-order: stroke fill; text-shadow: 0 5px 0 #2a1a2e; opacity: 0; transition: opacity .18s, transform .25s cubic-bezier(.3, 1.6, .5, 1); z-index: 7; pointer-events: none; text-align: center; white-space: nowrap; }
+.toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.toast.good { color: #ffd84d; }
+.toast.bad { color: #ff8fa8; }
+
+.spin { position: fixed; right: 16px; bottom: 70px; background: #fffdf5; border: 3px solid #2a1a2e; border-radius: 14px; padding: 6px 12px; width: 170px; z-index: 5; opacity: 0; transform: translateX(30px); transition: .2s; pointer-events: none; }
+.spin.show { opacity: 1; transform: none; }
+.spin b { font-size: 17px; display: block; }
+.spin span { display: block; height: 10px; border: 2px solid #2a1a2e; border-radius: 6px; margin-top: 4px; overflow: hidden; background: #eee; }
+.spin i { display: block; height: 100%; background: #ff4d6d; }
+.spin.top i { background: #ff7a1a; } .spin.back i { background: #3d8bff; } .spin.side i { background: #b04dff; }
+
+.overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(20, 16, 34, .55); z-index: 10; padding: 16px; }
+.overlay[hidden] { display: none; }
+.panel { background: #fffdf5; border: 4px solid #2a1a2e; border-radius: 26px; box-shadow: 0 8px 0 #2a1a2e; padding: 22px 26px; max-width: 520px; width: 100%; text-align: center; max-height: calc(100vh - 32px); overflow: auto; }
+.panel h1 { font-size: clamp(30px, 7vw, 44px); font-weight: 900; letter-spacing: 2px; }
+.panel h1 span { display: inline-block; transform: rotate(-4deg); }
+.panel p.sub { margin: 6px 0 14px; font-weight: 700; opacity: .75; }
+.panel .how { text-align: left; background: #f3eedc; border-radius: 14px; padding: 10px 14px; font-size: 14px; line-height: 1.7; margin-bottom: 16px; }
+.panel .how b { color: #d6335a; }
+.diffs { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.diffs button { font: inherit; font-weight: 900; font-size: 20px; padding: 10px 0; width: 120px; border: 3px solid #2a1a2e; border-radius: 16px; box-shadow: 0 5px 0 #2a1a2e; cursor: pointer; color: #2a1a2e; }
+.diffs button small { display: block; font-size: 12px; font-weight: 700; opacity: .75; }
+.diffs button:active { transform: translateY(4px); box-shadow: 0 1px 0 #2a1a2e; }
+.diffs .easy { background: #9ff0a8; } .diffs .normal { background: #ffd84d; } .diffs .hard { background: #ff8fa8; }
+.panel .row { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+.panel .big { font-size: clamp(40px, 10vw, 64px); font-weight: 900; margin: 8px 0; }
+.panel a.home { display: inline-block; margin-top: 14px; font-weight: 700; color: #2a1a2e; opacity: .7; }
+@media (max-width: 560px) { .score .side { min-width: 64px; padding: 4px 8px; } .score .side b { font-size: 24px; } .score .mid { min-width: 54px; } .corner { top: auto; bottom: 64px; } .hint { font-size: 13px; } .spin { bottom: 120px; width: 140px; } }
