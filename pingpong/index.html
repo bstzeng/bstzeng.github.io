@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#2b2350">
+  <title>公仔桌球 // NEON LAB</title>
+  <meta name="description" content="3D 公仔風桌球：滑鼠控制球拍，擊球瞬間移動球拍就能打出上旋、下旋、側旋。難度低、中、高。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../sportkit/ui.css">
+  <style>:root { --bg: #2b2350; }</style>
+  <script type="importmap">{ "imports": { "three": "../lib/three.module.min.js" } }</script>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div class="score" id="score">
+    <div class="side me" id="sMe"><small>你</small><b id="pMe">0</b></div>
+    <div class="mid"><span id="sDiff">—</span><em>11 分制</em></div>
+    <div class="side ai" id="sAi"><small>對手</small><b id="pAi">0</b></div>
+  </div>
+  <div class="corner"><a href="../">← 首頁</a></div>
+  <div class="corner r"><button id="bSound">🔊</button><button id="bMenu">☰ 難度</button></div>
+  <p class="hint" id="hint"></p>
+  <div class="toast" id="toast"></div>
+  <div class="spin" id="spin"><b>上旋</b><span><i></i></span></div>
+
+  <div class="overlay" id="menu">
+    <div class="panel">
+      <h1><span>🏓</span> 公仔桌球</h1>
+      <p class="sub">先拿 11 分獲勝（10 平要贏 2 分）</p>
+      <div class="how">
+        🖱️ <b>移動滑鼠</b>：球拍在桌面高度上跟著游標走<br>
+        🏓 球在你這邊彈一次後，讓球碰到球拍就會<b>自動回擊</b><br>
+        ↔️ 打到球拍<b>左右邊</b>，球就往那一邊飛<br>
+        🌀 <b>擊球瞬間移動球拍</b>就會打出旋球：往前推＝<b>上旋</b>（又快又沉）、往後拉＝<b>下旋</b>、左右刷＝<b>側旋</b>（空中轉彎）<br>
+        🎯 發球：<b>點一下滑鼠</b>，點的時候移動球拍也能加旋轉
+      </div>
+      <div class="diffs">
+        <button class="easy" data-d="easy">低<small>慢慢打</small></button>
+        <button class="normal" data-d="normal">中<small>有來有往</small></button>
+        <button class="hard" data-d="hard">高<small>旋球殺手</small></button>
+      </div>
+      <a class="home" href="../">← 回首頁</a>
+    </div>
+  </div>
+
+  <div class="overlay" id="over" hidden>
+    <div class="panel">
+      <h1 id="oTitle">你贏了！</h1>
+      <div class="big" id="oScore">11 : 7</div>
+      <p class="sub" id="oSub"></p>
+      <div class="row">
+        <button class="btn" id="bAgain">再來一局</button>
+        <button class="btn" id="bDiff">換難度</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
